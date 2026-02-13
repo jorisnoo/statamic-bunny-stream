@@ -1,12 +1,9 @@
 <template>
-    <button class="btn-primary" id="bunny-upload">
-        <PlusIcon class="h-6 w-6" />
-        {{ __('Upload Video') }}
-    </button>
+    <Button variant="primary" :text="__('Upload Video')" icon="upload" id="bunny-upload" />
 </template>
 
 <script>
-import PlusIcon from "../icons/Plus.vue";
+import { Button } from '@statamic/cms/ui';
 import Uppy from '@uppy/core';
 import Dashboard from '@uppy/dashboard';
 import Tus from '@uppy/tus';
@@ -16,7 +13,7 @@ import UppyBunnyCreator from '@/utils/UppyBunnyCreator.js';
 
 export default {
     components: {
-        PlusIcon
+        Button
     },
     inject: ['bunnyApiKey', 'bunnyHostname', 'bunnyLibrary'],
     data() {
