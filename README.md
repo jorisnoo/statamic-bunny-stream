@@ -4,22 +4,12 @@
 
 ## Features
 
-- ✅ **GDPR/DSGVO-Compliant Video Hosting & Embedding**
-  - Fully GDPR/DSGVO-compliant, no cookies or consent manager required
-  - No ads, tracking, or related videos from third parties
-  - EU-based data processing with geo-replicated CDN for global delivery
-- 🔄 **Seamless Statamic Integration**
-  - Native Statamic CP integration for easy uploads & management
-  - Custom thumbnails & cover images for full branding control
-  - Supports background videos with minimal UI mode
-- 🎥 **Advanced Streaming & Vidstack Video Player**
-  - Adaptive Bitrate Streaming (ABR) with HLS for smooth playback
-  - Vidstack Player with full customization (controls, branding, and playback settings)
-  - Multi-format support (HLS, DASH, MP4, WebM) for maximum compatibility
-- ⚙️ **Developer-Friendly & Flexible**
-  - Works with Statamic Bard, Replicator, and Antlers templating
-  - Headless-compatible for API-based or JAMstack integrations
-  - Secure, scalable, and supports token-authenticated video access
+- Native Statamic CP integration for video uploads and management
+- Browse, search, and manage Bunny Stream videos from the Control Panel
+- Upload videos directly via TUS protocol
+- Custom thumbnails and cover images for full branding control
+- Bunny fieldtype for selecting videos in blueprints (works with Bard and Replicator)
+- GDPR/DSGVO-compliant video hosting with no cookies or consent manager required
 
 ## Bunny Account Required 🐰
 
@@ -37,13 +27,6 @@ Install the addon using composer:
 composer require laborb/statamic-bunny-stream
 ```
 
-Insert the required styles & scripts using the following tags:
-
-- Use `{{ bunny:scripts }}` to add all required javascript files. We recommend adding this to the end of the `<body>`.
-- Use `{{ bunny:styles }}` to add all required css files. We recommend adding this to the `<head>`.
-
-All inserted files can be configured using the configuration file.
-
 ## Configuration
 
 You need to provide the following .env-Variables:
@@ -55,17 +38,6 @@ BUNNY_CDN_HOSTNAME=yourcdnhostname # Your Libraries CDN Hostname
 ```
 
 You can find these values in your Bunny Stream Dashboard at [https://dash.bunny.net/stream/](https://dash.bunny.net/stream/) `Delivery > Stream > API`
-
-You can enable Video embedding by setting the following variables:
-
-```bash
-BUNNY_EMBED_PATH="yourpath"
-BUNNY_EMBED_DOMAIN="*"
-```
-
-All videos will then be available through a direct url. Check the video browser to get the correct url for each video.
-
-Using `BUNNY_EMBED_DOMAIN` you can change the Access Control Header, if you want to limit access.
 
 ### Custom CDN Hostname
 
@@ -87,73 +59,11 @@ After installing the addon you can publish and update the default configuration:
 php artisan vendor:publish --tag=bunny-config
 ```
 
-### Publish Views (optional)
-
-All views are completely customizable. To publish them use:
-
-```bash
-php artisan vendor:publish --tag=bunny-views
-```
-
 ## Usage
 
-The bunny tag allows you to display a Bunny video stream using the Vidstack player in your Statamic site.
+This addon provides a Bunny fieldtype that you can add to any blueprint. It also includes a basic `bunny_video` fieldset with the Bunny field and a poster image field.
 
-```antlers
-{{ bunny id="bunny-video-id" title="My Video" poster="https://example.com/poster.jpg" preload="auto" class="custom-class" tracks="{{ tracks }}" }}
-```
-
-### Parameters
-
-| Parameter  | Type               | Description                                                                                     |
-|------------|--------------------|-------------------------------------------------------------------------------------------------|
-| `id`       | string             | The id of the video you want to display.                                                        |
-| `title`    | string (optional)  | A title to display for the video. Defaults to `null`.                                           |
-| `poster`   | string (optional)  | A poster image URL to display before the video starts. Defaults to `null`.                      |
-| `width`    | int (optional)     | The width of the video. Defaults to `null`.                                                     |
-| `height`   | int (optional)     | The height of the video. Defaults to `null`.                                                    |
-| `controls` | boolean (optional) | Whether the video should have controls. Defaults to `true`.                                     |
-| `preload`  | string (optional)  | How the video should be preloaded. Options: `auto`, `metadata`, `none`. Defaults to `metadata`. |
-| `tracks`   | array (optional)   | An array of additional tracks (e.g., captions, subtitles). Defaults to `[]`.                    |
-| `class`    | string (optional)  | Additional HTML classes to be added to the wrapper.                                             |
-
-### Configuring Tracks Array
-
-The `tracks` parameter must be formatted as an array of objects, where each object represents a caption or subtitle 
-track. The structure follows loosely the [Vidstack track format](https://vidstack.io/docs/wc/player/api/text-tracks/):
-
-Each track object must include the following properties:
-
-- `source`: The URL of the caption file.
-- `kind`: The type of track, e.g., `subtitles`, `captions`, `descriptions`.
-- `language`: The language code, e.g., `en`, `es`, `fr`.
-- `label`: The visible label for the track.
-
-Example JSON configuration for tracks:
-
-```json
-[
-    { "source": "/path/to/captions-en.vtt", "kind": "subtitles", "language": "en", "label": "English" },
-    { "source": "/path/to/captions-es.vtt", "kind": "subtitles", "language": "es", "label": "Spanish" }
-]
-```
-
-### Bunny-Field & -Fieldset
-
-This addon includes a basic Bunny fieldset that you can use.
-
-When using the fieldset you can use the following markup to output the video player:
-
-```antlers
-{{ bunny :id="bunny_video" :poster="bunny_poster[0]" :controls="bunny_controls" :tracks="bunny_captions" }}
-```
-
-You can also just use the Bunny field by adding it to any blueprint.
-
-## Customization
-
-You can customize the video player to your needs. 
-Check the [vidstack.io](https://vidstack.io/docs/wc/player) documentation for details.
+Use the video browser in the Control Panel (under the Bunny Stream navigation item) to upload, browse, and manage your videos.
 
 ## Disclaimer
 
