@@ -9,23 +9,13 @@ class ServiceProvider extends AddonServiceProvider
 {
     protected $viewNamespace = 'bunny';
 
-    protected $scripts = [
-        __DIR__ . '/../resources/dist/addon.js',
-    ];
-
-    protected $stylesheets = [
-        __DIR__ . '/../resources/dist/addon.css',
-    ];
-
-    /*
     protected $vite = [
         'input' => [
             'resources/js/addon.js',
-            'resources/css/addon.css'
+            'resources/css/addon.css',
         ],
         'publicDirectory' => 'resources/dist',
     ];
-    */
 
     protected $routes = [
         'cp' => __DIR__ . '/../routes/cp.php',
