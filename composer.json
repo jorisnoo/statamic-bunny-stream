@@ -36,5 +36,10 @@
                 "Laborb\\BunnyStream\\ServiceProvider"
             ]
         }
+    },
+    "config": {
+        "allow-plugins": {
+            "pixelfear/composer-dist-plugin": true
+        }
     }
 }
