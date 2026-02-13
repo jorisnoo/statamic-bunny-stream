@@ -4,9 +4,6 @@ import statamic from '@statamic/cms/vite-plugin';
 import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig({
-    build: {
-        target: 'es2021',
-    },
     plugins: [
         laravel({
             input: [

@@ -50,7 +50,6 @@
 import PlusCircleIcon from "../icons/PlusCircle.vue";
 import SpinnerIcon from "../icons/Spinner.vue";
 import VideoCard from "./VideoCard.vue";
-import axios from "axios";
 import {emitter} from '@/utils/emitter.js';
 import debounce from "debounce";
 
@@ -83,45 +82,37 @@ export default {
     },
     methods: {
         getAssets() {
-            const options = {
-                method: 'GET',
-                url: '/cp/bunny/assets/',
-                headers: {
-                    Accept: 'application/json',
-                },
-            };
-
-            axios
-                .request(options)
-                .then((response) => {
-                    this.assetOptions = response.data.items;
+            fetch('/cp/bunny/assets/', {
+                headers: { Accept: 'application/json' },
+            })
+                .then((response) => response.json())
+                .then((data) => {
+                    this.assetOptions = data.items;
                 })
-                .catch(function (error) {
+                .catch((error) => {
                     console.error(error);
                 });
         },
         getVideos() {
-            const options = {
-                method: 'GET',
-                url: `https://video.bunnycdn.com/library/${this.bunnyLibrary}/videos?page=${this.page}&itemsPerPage=${this.itemsPerPage}&orderBy=date`,
+            let url = `https://video.bunnycdn.com/library/${this.bunnyLibrary}/videos?page=${this.page}&itemsPerPage=${this.itemsPerPage}&orderBy=date`;
+
+            if (this.search !== '') {
+                url += `&search=${this.search}`;
+            }
+
+            fetch(url, {
                 headers: {
                     Accept: 'application/json',
                     AccessKey: this.bunnyApiKey,
                 },
-            };
-
-            if (this.search !== '') {
-                options.url += '&search=' + this.search;
-            }
-
-            axios
-                .request(options)
-                .then((response) => {
-                    this.maxPage = Math.ceil(response.data.totalItems / this.itemsPerPage);
-                    this.result = response.data;
+            })
+                .then((response) => response.json())
+                .then((data) => {
+                    this.maxPage = Math.ceil(data.totalItems / this.itemsPerPage);
+                    this.result = data;
                     this.loading = false;
                 })
-                .catch(function (error) {
+                .catch((error) => {
                     console.error(error);
                 });
         },

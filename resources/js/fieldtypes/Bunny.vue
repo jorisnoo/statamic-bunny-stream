@@ -31,8 +31,6 @@
 import { ref, computed, onMounted } from 'vue';
 import { Fieldtype } from '@statamic/cms';
 import { Combobox } from '@statamic/cms/ui';
-import axios from 'axios';
-
 const emit = defineEmits(Fieldtype.emits);
 const props = defineProps(Fieldtype.props);
 const { expose, update } = Fieldtype.use(emit, props);
@@ -56,17 +54,15 @@ const selectedOptions = computed(() => {
 });
 
 function getVideos() {
-    axios
-        .request({
-            method: 'GET',
-            url: `https://video.bunnycdn.com/library/${props.meta.library}/videos?page=1&itemsPerPage=100&orderBy=date`,
-            headers: {
-                accept: 'application/json',
-                AccessKey: props.meta.api,
-            },
-        })
-        .then((response) => {
-            videos.value = response.data;
+    fetch(`https://video.bunnycdn.com/library/${props.meta.library}/videos?page=1&itemsPerPage=100&orderBy=date`, {
+        headers: {
+            Accept: 'application/json',
+            AccessKey: props.meta.api,
+        },
+    })
+        .then((response) => response.json())
+        .then((data) => {
+            videos.value = data;
             loading.value = false;
             arrangeVideos();
         })

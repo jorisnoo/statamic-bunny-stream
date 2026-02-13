@@ -65,7 +65,6 @@
 <script>
 import { Combobox } from '@statamic/cms/ui';
 import CogIcon from "../icons/Cog.vue";
-import axios from 'axios';
 import {emitter} from '@/utils/emitter.js';
 
 export default {
@@ -98,20 +97,20 @@ export default {
             this.isOpen = false;
         },
         changeTitle() {
-            const options = {
+            fetch(`https://video.bunnycdn.com/library/${this.bunnyLibrary}/videos/${this.id}`, {
                 method: 'POST',
-                url: `https://video.bunnycdn.com/library/${this.bunnyLibrary}/videos/${this.id}`,
                 headers: {
                     Accept: 'application/json',
-                    'content-type': 'application/*+json',
-                    AccessKey: this.bunnyApiKey
+                    'Content-Type': 'application/*+json',
+                    AccessKey: this.bunnyApiKey,
                 },
-                data: '{"title":"' + this.videoTitle + '"}'
-            };
+                body: JSON.stringify({ title: this.videoTitle }),
+            })
+                .then((response) => {
+                    if (!response.ok) {
+                        throw new Error(`Failed to update title: ${response.status}`);
+                    }
 
-            axios
-                .request(options)
-                .then(() => {
                     this.$toast.success(__('Video title has been updated!'));
                     this.$progress.complete('title');
                     emitter.emit('load');
@@ -123,18 +122,18 @@ export default {
                 });
         },
         changeThumbnail() {
-            const options = {
+            fetch(`https://video.bunnycdn.com/library/${this.bunnyLibrary}/videos/${this.id}/thumbnail?thumbnailUrl=${this.selectedThumbnails[0].url}`, {
                 method: 'POST',
-                url: `https://video.bunnycdn.com/library/${this.bunnyLibrary}/videos/${this.id}/thumbnail?thumbnailUrl=${this.selectedThumbnails[0].url}`,
                 headers: {
                     Accept: 'application/json',
-                    AccessKey: this.bunnyApiKey
-                }
-            };
+                    AccessKey: this.bunnyApiKey,
+                },
+            })
+                .then((response) => {
+                    if (!response.ok) {
+                        throw new Error(`Failed to update thumbnail: ${response.status}`);
+                    }
 
-            axios
-                .request(options)
-                .then(() => {
                     this.$toast.success(__('Thumbnail has been updated!'));
                     this.thumbnailUrl = null;
                     this.$progress.complete('thumbnail');

@@ -1,6 +1,4 @@
 import { BasePlugin } from '@uppy/core';
-import axios from 'axios';
-
 class UppyBunnyCreator extends BasePlugin {
     constructor(uppy, opts) {
         super(uppy, opts);
@@ -9,22 +7,27 @@ class UppyBunnyCreator extends BasePlugin {
         this.type = 'modifier';
     }
 
-    create(file) {
-        let options = {
+    async create(file) {
+        const response = await fetch(`https://video.bunnycdn.com/library/${this.opts.library}/videos`, {
             method: 'POST',
-            url: 'https://video.bunnycdn.com/library/' + this.opts.library + '/videos',
             headers: {
-                accept: 'application/json',
-                'content-type': 'application/*+json',
-                AccessKey: this.opts.access
+                Accept: 'application/json',
+                'Content-Type': 'application/*+json',
+                AccessKey: this.opts.access,
             },
-            data: '{"title": "' + file.meta.name + '", "thumbnailTime": "' + this.getMsFromTime(file.meta.thumbTime) + '"}'
-        };
+            body: JSON.stringify({
+                title: file.meta.name,
+                thumbnailTime: this.getMsFromTime(file.meta.thumbTime),
+            }),
+        });
 
-        return axios
-            .request(options)
-            .then(response => { return response.data.guid })
-            .catch(error => console.error(error));
+        if (!response.ok) {
+            throw new Error(`Failed to create video: ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        return data.guid;
     }
 
     prepareUpload = async (fileIDs) => {

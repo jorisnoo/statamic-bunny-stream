@@ -10,7 +10,6 @@ import PlusIcon from "../icons/Plus.vue";
 import Uppy from '@uppy/core';
 import Dashboard from '@uppy/dashboard';
 import Tus from '@uppy/tus';
-import { sha256 } from 'js-sha256';
 import { emitter } from '@/utils/emitter.js';
 import UppyBunnyCreator from '@/utils/UppyBunnyCreator.js';
 
@@ -31,9 +30,14 @@ export default {
             d.setDate(d.getDate() + 1);
             return d.getTime();
         },
-        getAuthorizationSignature(videoId) {
+        async getAuthorizationSignature(videoId) {
             const signature = this.bunnyLibrary + this.bunnyApiKey + this.expirationTime + videoId;
-            return sha256(signature);
+            const encoded = new TextEncoder().encode(signature);
+            const hash = await crypto.subtle.digest('SHA-256', encoded);
+
+            return Array.from(new Uint8Array(hash))
+                .map((b) => b.toString(16).padStart(2, '0'))
+                .join('');
         },
         initializeUppy() {
             this.expirationTime = this.getExpirationTime();
@@ -74,15 +78,16 @@ export default {
                 .use(Tus, {
                     endpoint: 'https://video.bunnycdn.com/tusupload',
                     retryDelays: [0, 30, 50, 3000, 5000, 10000, 60000],
-                    onBeforeRequest: (req, file) => {
+                    onBeforeRequest: async (req, file) => {
                         const fileMeta = this.uploader.getFile(file.id).meta;
                         if (fileMeta.bunnyId) {
-                            req.setHeader('AuthorizationSignature', this.getAuthorizationSignature(fileMeta.bunnyId));
+                            const signature = await this.getAuthorizationSignature(fileMeta.bunnyId);
+                            req.setHeader('AuthorizationSignature', signature);
                             req.setHeader('AuthorizationExpire', this.expirationTime);
                             req.setHeader('VideoId', fileMeta.bunnyId);
                             req.setHeader('LibraryId', this.bunnyLibrary);
                         } else {
-                            throw '';
+                            throw new Error('Missing Bunny video ID');
                         }
                     }
                 });

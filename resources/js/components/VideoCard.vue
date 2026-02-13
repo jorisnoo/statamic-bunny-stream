@@ -73,7 +73,6 @@ import LinkIcon from "../icons/Link.vue";
 import SpinnerIcon from "../icons/Spinner.vue";
 import TrashIcon from "../icons/Trash.vue";
 import VideoSettings from "./VideoSettings.vue";
-import axios from "axios";
 import {emitter} from '@/utils/emitter.js';
 
 export default {
@@ -106,23 +105,21 @@ export default {
         loadVideo() {
             this.isLoading = true;
 
-            axios
-                .request({
-                    method: 'GET',
-                    url: `https://video.bunnycdn.com/library/${this.bunnyLibrary}/videos/${this.currentVideo.guid}`,
-                    headers: {
-                        Accept: 'application/json',
-                        AccessKey: this.bunnyApiKey,
-                    },
-                })
-                .then(response => {
-                    this.currentVideo = response.data;
+            fetch(`https://video.bunnycdn.com/library/${this.bunnyLibrary}/videos/${this.currentVideo.guid}`, {
+                headers: {
+                    Accept: 'application/json',
+                    AccessKey: this.bunnyApiKey,
+                },
+            })
+                .then((response) => response.json())
+                .then((data) => {
+                    this.currentVideo = data;
                     if (this.currentVideo.status >= 4) {
                         clearInterval(this.polling);
                         emitter.emit('load');
                     }
                 })
-                .catch(function (error) {
+                .catch((error) => {
                     console.error(error);
                 })
                 .finally(() => {
@@ -132,21 +129,19 @@ export default {
         deleteVideo() {
             this.isLoading = true;
 
-            axios
-                .request({
-                    method: 'DELETE',
-                    url: `https://video.bunnycdn.com/library/${this.bunnyLibrary}/videos/${this.currentVideo.guid}`,
-                    headers: {
-                        Accept: 'application/json',
-                        AccessKey: this.bunnyApiKey,
-                    },
-                })
+            fetch(`https://video.bunnycdn.com/library/${this.bunnyLibrary}/videos/${this.currentVideo.guid}`, {
+                method: 'DELETE',
+                headers: {
+                    Accept: 'application/json',
+                    AccessKey: this.bunnyApiKey,
+                },
+            })
                 .then(() => {
                     this.cancelDeletion();
                     clearInterval(this.polling);
                     emitter.emit('load');
                 })
-                .catch(function (error) {
+                .catch((error) => {
                     console.error(error);
                 })
                 .finally(() => {
