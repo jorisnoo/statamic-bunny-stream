@@ -2,7 +2,7 @@
 import { provide } from 'vue';
 import { Head } from '@statamic/cms/inertia';
 import { DocsCallout, Header } from '@statamic/cms/ui';
-import VideoBrowser from './VideoBrowser.vue';
+import MediaBrowser from './MediaBrowser.vue';
 import Uploader from './Uploader.vue';
 import Affiliate from './Affiliate.vue';
 
@@ -24,7 +24,7 @@ provide('bunnyLibrary', props.bunny.library);
         <Header :title="title">
             <Uploader />
         </Header>
-        <VideoBrowser />
+        <MediaBrowser />
     </template>
     <template v-else>
         <Affiliate />

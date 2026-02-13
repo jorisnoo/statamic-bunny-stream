@@ -1,5 +1,5 @@
 <template>
-    <Button variant="primary" :text="__('Upload Video')" icon="upload" id="bunny-upload" />
+    <Button variant="primary" :text="__('Upload Media')" icon="upload" id="bunny-upload" />
 </template>
 
 <script>

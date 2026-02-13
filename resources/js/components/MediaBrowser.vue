@@ -1,12 +1,11 @@
 <template>
     <div>
         <div class="mb-4">
-            <input
+            <Input
                 type="text"
-                :placeholder="__('Search videos...')"
+                :placeholder="__('Search media...')"
                 v-model="search"
                 @input="debouncedSearch"
-                class="input-text"
             />
         </div>
 
@@ -18,7 +17,7 @@
             <table class="data-table">
                 <thead>
                     <tr>
-                        <th>{{ __('Video') }}</th>
+                        <th>{{ __('File') }}</th>
                         <th class="hidden md:table-cell">{{ __('Date') }}</th>
                         <th class="actions-column" />
                     </tr>
@@ -42,13 +41,13 @@
         </div>
 
         <div v-else-if="search.length > 0" class="text-center text-sm text-gray-500 py-8">
-            {{ __('No videos found.') }}
+            {{ __('No media found.') }}
         </div>
 
         <div v-else class="text-center text-sm text-gray-500 py-8">
-            <p>{{ __('No videos yet.') }}</p>
+            <p>{{ __('No media yet.') }}</p>
             <button class="btn-primary mt-4" @click="openUpload">
-                {{ __('Upload Video') }}
+                {{ __('Upload Media') }}
             </button>
         </div>
     </div>
@@ -57,11 +56,12 @@
 <script>
 import SpinnerIcon from "../icons/Spinner.vue";
 import VideoCard from "./VideoCard.vue";
+import { Input } from '@statamic/cms/ui';
 import { emitter } from '@/utils/emitter.js';
 import debounce from "debounce";
 
 export default {
-    components: { SpinnerIcon, VideoCard },
+    components: { SpinnerIcon, VideoCard, Input },
     inject: ['bunnyApiKey', 'bunnyLibrary'],
     data() {
         return {
