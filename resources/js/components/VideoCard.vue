@@ -6,9 +6,36 @@
                     <a :href="videoUrl" target="_blank" class="shrink-0">
                         <img :src="thumbnailUrl" class="size-16 rounded object-cover" />
                     </a>
-                    <a :href="videoUrl" target="_blank" class="text-sm font-medium truncate">
-                        {{ currentVideo.title }}
-                    </a>
+                    <template v-if="!isEditing">
+                        <a :href="videoUrl" target="_blank" class="text-sm font-medium truncate">
+                            {{ currentVideo.title }}
+                        </a>
+                        <button @click="startEditing" class="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 cursor-pointer shrink-0">
+                            <svg class="size-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Zm0 0L19.5 7.125" />
+                            </svg>
+                        </button>
+                    </template>
+                    <template v-else>
+                        <input
+                            ref="titleInput"
+                            v-model="editTitle"
+                            type="text"
+                            class="text-sm font-medium border border-gray-400 dark:border-dark-200 rounded px-2 py-1 w-full bg-white dark:bg-dark-500"
+                            @keydown.enter="saveTitle"
+                            @keydown.escape="cancelEditing"
+                        />
+                        <button @click="saveTitle" class="text-gray-400 hover:text-green-600 cursor-pointer shrink-0">
+                            <svg class="size-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                            </svg>
+                        </button>
+                        <button @click="cancelEditing" class="text-gray-400 hover:text-red-500 cursor-pointer shrink-0">
+                            <svg class="size-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </template>
                 </template>
                 <template v-else>
                     <div class="size-16 rounded bg-gray-300 dark:bg-dark-200 flex items-center justify-center shrink-0">
@@ -66,6 +93,8 @@ export default {
             thumbnailUrl: `https://${this.bunnyHostname}/${this.video.guid}/${this.video.thumbnailFileName}`,
             videoUrl: `https://iframe.mediadelivery.net/play/${this.video.videoLibraryId}/${this.video.guid}`,
             triggerDeletion: false,
+            isEditing: false,
+            editTitle: '',
         }
     },
     mounted() {
@@ -139,6 +168,49 @@ export default {
         },
         cancelDeletion() {
             this.triggerDeletion = false;
+        },
+        startEditing() {
+            this.editTitle = this.currentVideo.title;
+            this.isEditing = true;
+
+            this.$nextTick(() => {
+                this.$refs.titleInput.focus();
+                this.$refs.titleInput.select();
+            });
+        },
+        saveTitle() {
+            const title = this.editTitle.trim();
+
+            if (! title || title === this.currentVideo.title) {
+                this.isEditing = false;
+                return;
+            }
+
+            fetch(`https://video.bunnycdn.com/library/${this.bunnyLibrary}/videos/${this.currentVideo.guid}`, {
+                method: 'POST',
+                headers: {
+                    Accept: 'application/json',
+                    'Content-Type': 'application/*+json',
+                    AccessKey: this.bunnyApiKey,
+                },
+                body: JSON.stringify({ title }),
+            })
+                .then((response) => {
+                    if (! response.ok) {
+                        throw new Error('Failed to update title');
+                    }
+
+                    this.currentVideo.title = title;
+                    this.isEditing = false;
+                    Statamic.$toast.success(__('Title updated'));
+                })
+                .catch((error) => {
+                    console.error(error);
+                    Statamic.$toast.error(__('Failed to update title'));
+                });
+        },
+        cancelEditing() {
+            this.isEditing = false;
         },
     }
 }
