@@ -60,7 +60,7 @@ Now your videos are delivered over your custom hostname.
 To customize the default configuration, publish the config file:
 
 ```bash
-php artisan vendor:publish --tag=bunny-stream-config
+php artisan vendor:publish --tag=statamic-bunny-stream-config
 ```
 
 This will create `config/statamic/bunny-stream.php` where you can override the default values.
