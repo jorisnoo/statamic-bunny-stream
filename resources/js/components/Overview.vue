@@ -16,19 +16,15 @@
 <script>
 import VideoBrowser from './VideoBrowser.vue';
 import Uploader from './Uploader.vue';
-import SpinnerIcon from "../icons/Spinner.vue";
 import Affiliate from "./Affiliate.vue";
 
 export default {
-    components: {Affiliate, SpinnerIcon, Uploader, VideoBrowser},
+    components: {Affiliate, Uploader, VideoBrowser},
     props: {
         title: String,
         access: String,
         hostname: String,
         library: Number,
-    },
-    data() {
-        return {};
     },
     provide() {
         return {
