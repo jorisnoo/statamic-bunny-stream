@@ -26,8 +26,6 @@ export default {
         access: String,
         hostname: String,
         library: Number,
-        routeEmbed: String,
-        routeView: String,
     },
     data() {
         return {};
@@ -37,8 +35,6 @@ export default {
             bunnyApiKey: this.access,
             bunnyHostname: this.hostname,
             bunnyLibrary: this.library,
-            routeEmbed: this.routeEmbed,
-            routeView: this.routeView,
         };
     }
 }

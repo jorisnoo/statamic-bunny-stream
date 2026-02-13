@@ -20,14 +20,6 @@
                     </div>
                 </div>
                 <p class="flex gap-2 md:gap-4 items-center justify-start text-xs md:text-sm whitespace-nowrap">
-                    <a v-if="viewUrl" :href="viewUrl" target="_blank" class="flex gap-1 items-center">
-                        {{ __('Direct Play') }}
-                        <LinkIcon class="size-4" />
-                    </a>
-                    <a v-if="embedUrl" :href="embedUrl" target="_blank" class="flex gap-1 items-center">
-                        {{ __('Embed URL') }}
-                        <LinkIcon class="size-4" />
-                    </a>
                     <a :href="thumbnailUrl" target="_blank" class="flex gap-1 items-center">
                         {{ __('Thumbnail') }}
                         <LinkIcon class="size-4" />
@@ -86,7 +78,7 @@ import {emitter} from '@/utils/emitter.js';
 
 export default {
     components: {VideoSettings, CloudIcon, LinkIcon, TrashIcon, SpinnerIcon, EyeIcon},
-    inject: ['bunnyApiKey', 'bunnyHostname', 'bunnyLibrary', 'routeEmbed', 'routeView'],
+    inject: ['bunnyApiKey', 'bunnyHostname', 'bunnyLibrary'],
     props: {
         video: Object,
         assetOptions: Array,
@@ -97,8 +89,6 @@ export default {
     },
     data() {
         return {
-            embedUrl: this.routeEmbed ? this.routeEmbed.replace(':video:', this.video.guid) : null,
-            viewUrl: this.routeView ? this.routeView.replace(':video:', this.video.guid) : null,
             thumbnailUrl: `https://${this.bunnyHostname}/${this.video.guid}/${this.video.thumbnailFileName}`,
             videoUrl: `https://iframe.mediadelivery.net/play/${this.video.videoLibraryId}/${this.video.guid}`,
             triggerDeletion: false,
