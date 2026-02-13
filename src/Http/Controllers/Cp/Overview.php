@@ -1,6 +1,6 @@
 <?php
 
-namespace Laborb\BunnyStream\Http\Controllers\Cp;
+namespace Noo\BunnyStream\Http\Controllers\Cp;
 
 use Inertia\Inertia;
 use Inertia\Response;
