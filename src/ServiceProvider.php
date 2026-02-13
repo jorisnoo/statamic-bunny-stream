@@ -32,11 +32,11 @@ class ServiceProvider extends AddonServiceProvider
 
         Fieldtypes\Bunny::register();
 
-        $this->mergeConfigFrom(__DIR__ . '/../config/bunny.php','statamic.bunny');
+        $this->mergeConfigFrom(__DIR__ . '/../config/bunny-stream.php', 'statamic.bunny-stream');
         $this->loadJsonTranslationsFrom(__DIR__ . '/../lang');
 
         $this->publishes([
-            __DIR__ . '/../config/bunny.php' => config_path('statamic/bunny.php'),
-        ],'bunny-config');
+            __DIR__ . '/../config/bunny-stream.php' => config_path('statamic/bunny-stream.php'),
+        ], 'bunny-stream-config');
     }
 }

@@ -16,9 +16,9 @@ class Overview extends CpController
                 'url' => 'https://github.com/laborb/statamic-bunny-stream',
             ],
             'bunny' => [
-                'apiKey' => config('statamic.bunny.api_key'),
-                'hostname' => config('statamic.bunny.hostname'),
-                'library' => config('statamic.bunny.library_id'),
+                'apiKey' => config('statamic.bunny-stream.api_key'),
+                'hostname' => config('statamic.bunny-stream.hostname'),
+                'library' => config('statamic.bunny-stream.library_id'),
             ],
         ]);
     }

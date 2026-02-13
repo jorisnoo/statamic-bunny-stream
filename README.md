@@ -36,9 +36,9 @@ composer require jorisnoo/statamic-bunny-stream
 You need to provide the following .env variables:
 
 ```bash
-BUNNY_LIBRARY_ID=yourid            # Your Bunny Stream LibraryID
-BUNNY_API_KEY=yourapikey           # Your Libraries API Key
-BUNNY_CDN_HOSTNAME=yourcdnhostname # Your Libraries CDN Hostname
+BUNNY_STREAM_LIBRARY_ID=yourid            # Your Bunny Stream Library ID
+BUNNY_STREAM_API_KEY=yourapikey           # Your Library API Key
+BUNNY_STREAM_CDN_HOSTNAME=yourcdnhostname # Your Library CDN Hostname
 ```
 
 You can find these values in your Bunny Stream Dashboard at [https://dash.bunny.net/stream/](https://dash.bunny.net/stream/) `Delivery > Stream > API`
@@ -57,11 +57,13 @@ Now your videos are delivered over your custom hostname.
 
 ### Publish Configuration (optional)
 
-After installing the addon you can publish and update the default configuration:
+To customize the default configuration, publish the config file:
 
 ```bash
-php artisan vendor:publish --tag=bunny-config
+php artisan vendor:publish --tag=bunny-stream-config
 ```
+
+This will create `config/statamic/bunny-stream.php` where you can override the default values.
 
 ## Usage
 

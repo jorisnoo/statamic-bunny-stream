@@ -12,9 +12,9 @@ class Bunny extends Fieldtype
     public function preload(): array
     {
         return [
-            'api' => config('statamic.bunny.api_key'),
-            'library' => config('statamic.bunny.library_id'),
-            'hostname' => config('statamic.bunny.hostname'),
+            'api' => config('statamic.bunny-stream.api_key'),
+            'library' => config('statamic.bunny-stream.library_id'),
+            'hostname' => config('statamic.bunny-stream.hostname'),
         ];
     }
 }

@@ -14,9 +14,9 @@ class VideoRepository
             try {
                 $result = Http::withHeaders([
                     'Accept' => 'application/json',
-                    'AccessKey' => config('statamic.bunny.api_key'),
+                    'AccessKey' => config('statamic.bunny-stream.api_key'),
                 ])->get(vsprintf('https://video.bunnycdn.com/library/%s/videos/%s', [
-                    config('statamic.bunny.library_id'),
+                    config('statamic.bunny-stream.library_id'),
                     $video,
                 ]));
 
