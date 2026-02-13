@@ -1,7 +1,7 @@
-import { UIPlugin } from '@uppy/core';
+import { BasePlugin } from '@uppy/core';
 import axios from 'axios';
 
-class UppyBunnyCreator extends UIPlugin {
+class UppyBunnyCreator extends BasePlugin {
     constructor(uppy, opts) {
         super(uppy, opts);
 
