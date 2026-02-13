@@ -4,6 +4,9 @@ import statamic from '@statamic/cms/vite-plugin';
 import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig({
+    build: {
+        target: 'esnext',
+    },
     plugins: [
         laravel({
             input: [
