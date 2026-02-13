@@ -2,3 +2,4 @@
 @import '@uppy/dashboard/dist/style.css';
 
 @import "tailwindcss";
+@source "../js/**/*.vue";

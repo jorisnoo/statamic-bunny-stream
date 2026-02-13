@@ -1,7 +1,7 @@
 <script setup>
 import { provide } from 'vue';
 import { Head } from '@statamic/cms/inertia';
-import { DocsCallout } from '@statamic/cms/ui';
+import { DocsCallout, Header } from '@statamic/cms/ui';
 import VideoBrowser from './VideoBrowser.vue';
 import Uploader from './Uploader.vue';
 import Affiliate from './Affiliate.vue';
@@ -21,10 +21,9 @@ provide('bunnyLibrary', props.bunny.library);
     <Head :title="title" />
 
     <template v-if="bunny.apiKey && bunny.hostname && bunny.library">
-        <div class="flex gap-2 justify-between">
-            <h1 class="flex-grow mb-4">{{ title }}</h1>
+        <Header :title="title">
             <Uploader />
-        </div>
+        </Header>
         <VideoBrowser />
     </template>
     <template v-else>

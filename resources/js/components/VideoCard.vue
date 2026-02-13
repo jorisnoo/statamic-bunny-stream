@@ -1,61 +1,46 @@
 <template>
-    <div>
-        <div
-            v-if="currentVideo.status >= 4"
-            class="sm:grid sm:grid-cols-3 overflow-hidden bg-white rounded shadow-xl w-full mb-4"
-        >
-            <a :href="videoUrl" target="_blank" class="">
-                <img :src="thumbnailUrl" class="aspect-video inset-0 h-full object-cover w-full" />
-            </a>
-            <div class="sm:col-span-2 py-2 sm:py-4 px-2 sm:px-6 text-gray-800 flex flex-col justify-between gap-1">
-                <div class="flex sm:flex-grow items-start justify-between gap-4 w-full">
-                    <a :href="videoUrl" target="_blank" class="flex-grow min-w-0 font-semibold text-base sm:text-lg leading-tight truncate">
+    <tr>
+        <td>
+            <div class="flex items-center gap-2">
+                <template v-if="currentVideo.status >= 4">
+                    <a :href="videoUrl" target="_blank" class="shrink-0">
+                        <img :src="thumbnailUrl" class="size-10 rounded object-cover" />
+                    </a>
+                    <a :href="videoUrl" target="_blank" class="text-sm font-medium truncate">
                         {{ currentVideo.title }}
                     </a>
-                    <div class="flex gap-1">
-                        <VideoSettings :id="currentVideo.guid" :title="currentVideo.title" />
-                        <button class="size-5" @click="confirmDeletion()">
-                            <TrashIcon class="size-5" />
-                        </button>
+                </template>
+                <template v-else>
+                    <div class="size-10 rounded bg-gray-300 dark:bg-dark-200 flex items-center justify-center shrink-0">
+                        <svg class="size-5 animate-spin text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                        </svg>
                     </div>
-                </div>
-                <p class="flex gap-2 md:gap-4 items-center justify-start text-xs md:text-sm whitespace-nowrap">
-                    <a :href="thumbnailUrl" target="_blank" class="flex gap-1 items-center">
-                        {{ __('Thumbnail') }}
-                        <LinkIcon class="size-4" />
-                    </a>
-                </p>
-                <div class="text-xs md:text-sm text-gray-600 flex justify-between">
-                    <div class="flex gap-2 items-center">
-                        <CloudIcon class="text-gray-500 size-4" />
-                        {{ new Date(currentVideo.dateUploaded).toLocaleString() }}
-                    </div>
-                    <div class="flex gap-2 items-center">
-                        <EyeIcon class="text-gray-500 size-4" />
-                        {{ currentVideo.views }}
-                    </div>
-                </div>
+                    <span class="text-sm text-gray-500">
+                        {{ __('Processing...') }} {{ currentVideo.encodeProgress * 2 }}%
+                    </span>
+                </template>
             </div>
-        </div>
-        <div
-            v-else
-            class="flex flex-col overflow-hidden bg-white rounded shadow-xl w-full mb-4 p-6 items-center justify-center"
-        >
-            <h2 class="text-lg">
-                {{ __('Video is being processed') }} &ndash; {{ currentVideo.encodeProgress * 2 }}%
-            </h2>
-            <p class="text-xs text-gray-600">
-                {{ __('This may take some time.') }}
-            </p>
-            <button class="text-xs text-red-500" @click="confirmDeletion()">
-                {{ __('Cancel and delete video') }}
+        </td>
+        <td class="hidden md:table-cell">
+            <span v-if="currentVideo.status >= 4" class="text-sm text-gray-500">
+                {{ formatDate(currentVideo.dateUploaded) }}
+            </span>
+            <span v-else class="text-sm text-gray-500">
+                {{ __('Processing...') }}
+            </span>
+        </td>
+        <td class="actions-column">
+            <button @click="confirmDeletion" class="text-gray-500 hover:text-red-500">
+                <svg class="size-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+                </svg>
             </button>
-            <div role="status" class="mt-4 mx-auto">
-                <SpinnerIcon class="w-8 h-8 mr-2 animate-spin"/>
-                <span class="sr-only">{{ __('Loading...') }}</span>
-            </div>
-        </div>
+        </td>
+    </tr>
 
+    <Teleport to="body">
         <ui-confirmation-modal
             v-model:open="triggerDeletion"
             :title="__('Delete video :title', {'title': currentVideo.title})"
@@ -63,20 +48,13 @@
             @cancel="cancelDeletion"
             danger="true"
         />
-    </div>
+    </Teleport>
 </template>
 
 <script>
-import CloudIcon from "../icons/Cloud.vue";
-import EyeIcon from "../icons/Eye.vue";
-import LinkIcon from "../icons/Link.vue";
-import SpinnerIcon from "../icons/Spinner.vue";
-import TrashIcon from "../icons/Trash.vue";
-import VideoSettings from "./VideoSettings.vue";
-import {emitter} from '@/utils/emitter.js';
+import { emitter } from '@/utils/emitter.js';
 
 export default {
-    components: {VideoSettings, CloudIcon, LinkIcon, TrashIcon, SpinnerIcon, EyeIcon},
     inject: ['bunnyApiKey', 'bunnyHostname', 'bunnyLibrary'],
     props: {
         video: Object,
@@ -98,6 +76,15 @@ export default {
         }
     },
     methods: {
+        formatDate(dateString) {
+            const date = new Date(dateString);
+
+            return date.toLocaleDateString(undefined, {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+            });
+        },
         confirmDeletion() {
             this.triggerDeletion = true;
         },

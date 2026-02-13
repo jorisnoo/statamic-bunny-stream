@@ -1,60 +1,67 @@
 <template>
     <div>
-        <div class="container w-full lg:w-4/5 mx-auto input-group mb-4">
-            <input type="text" :placeholder="__('Search videos')" @input="debouncedSearch" v-model="search" class="input-text" />
+        <div class="mb-4">
+            <input
+                type="text"
+                :placeholder="__('Search videos...')"
+                v-model="search"
+                @input="debouncedSearch"
+                class="input-text"
+            />
         </div>
-        <div v-if="loading" class="flex items-center">
-            <div role="status" class="mt-4 mx-auto">
-                <SpinnerIcon class="w-8 h-8 mr-2 animate-spin"/>
-                <span class="sr-only">
-                    {{ __('Loading...') }}
-                </span>
-            </div>
+
+        <div v-if="loading" class="flex items-center justify-center py-12">
+            <SpinnerIcon class="size-8 animate-spin text-gray-500" />
         </div>
-        <div v-else-if="!loading && result.totalItems >= 1">
-            <div id="card">
-                <div class="container w-full lg:w-4/5 mx-auto">
-                    <div class="flex flex-col">
-                        <VideoCard v-for="video in result.items" v-bind:key="video.guid" :video="video" />
-                    </div>
 
-                    <div v-if="result.totalItems > result.items.length" class="flex items-center justify-between">
-                        <button class="btn-primary" @click="prevPage">
-                            &laquo;
-                        </button>
+        <div v-else-if="result.totalItems >= 1" class="card p-0">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>{{ __('Video') }}</th>
+                        <th class="hidden md:table-cell">{{ __('Date') }}</th>
+                        <th class="actions-column" />
+                    </tr>
+                </thead>
+                <tbody>
+                    <VideoCard
+                        v-for="video in result.items"
+                        :key="video.guid"
+                        :video="video"
+                    />
+                </tbody>
+            </table>
 
-                        <div>
-                            {{ page }} / {{ maxPage }}
-                        </div>
-
-                        <button class="btn-primary" @click="nextPage">
-                            &raquo;
-                        </button>
-                    </div>
+            <div v-if="result.totalItems > itemsPerPage" class="flex items-center justify-between border-t px-4 py-2 text-sm text-gray-700 dark:text-dark-150">
+                <span>{{ rangeStart }}–{{ rangeEnd }} {{ __('of') }} {{ result.totalItems }}</span>
+                <div class="flex gap-1">
+                    <button class="btn-flat btn-sm" :disabled="page <= 1" @click="prevPage">&laquo;</button>
+                    <button class="btn-flat btn-sm" :disabled="page >= maxPage" @click="nextPage">&raquo;</button>
                 </div>
             </div>
         </div>
-        <div v-else-if="search.length > 0" class="text-center text-sm">
+
+        <div v-else-if="search.length > 0" class="text-center text-sm text-gray-500 py-8">
             {{ __('No videos found.') }}
         </div>
-        <button v-else @click="openUpload()" class="flex flex-col overflow-hidden border-gray-600 border-dashed border-2 rounded shadow-xl w-full mb-4 p-6 items-center justify-center">
-            <h2 class="text-xl">
+
+        <div v-else class="text-center text-sm text-gray-500 py-8">
+            <p>{{ __('No videos yet.') }}</p>
+            <button class="btn-primary mt-4" @click="openUpload">
                 {{ __('Upload Video') }}
-            </h2>
-            <PlusCircleIcon class="h-10 w-10" />
-        </button>
+            </button>
+        </div>
     </div>
 </template>
 
 <script>
-import PlusCircleIcon from "../icons/PlusCircle.vue";
 import SpinnerIcon from "../icons/Spinner.vue";
 import VideoCard from "./VideoCard.vue";
-import {emitter} from '@/utils/emitter.js';
+import { emitter } from '@/utils/emitter.js';
 import debounce from "debounce";
 
 export default {
-    components: {PlusCircleIcon, SpinnerIcon, VideoCard},
+    components: { SpinnerIcon, VideoCard },
     inject: ['bunnyApiKey', 'bunnyLibrary'],
     data() {
         return {
@@ -66,6 +73,14 @@ export default {
             maxPage: 1,
             itemsPerPage: 10,
         };
+    },
+    computed: {
+        rangeStart() {
+            return (this.page - 1) * this.itemsPerPage + 1;
+        },
+        rangeEnd() {
+            return Math.min(this.page * this.itemsPerPage, this.result.totalItems);
+        },
     },
     created() {
         this.getVideos();
@@ -106,23 +121,19 @@ export default {
             emitter.emit('upload');
         },
         debouncedSearch: debounce(() => {
-            emitter.emit('load', {page: 1});
+            emitter.emit('load', { page: 1 });
         }, 500),
         nextPage() {
-            this.page++;
-            if (this.page > this.maxPage) {
-                this.page = 1;
+            if (this.page < this.maxPage) {
+                this.page++;
+                this.getVideos();
             }
-
-            this.getVideos();
         },
         prevPage() {
-            this.page--;
-            if (this.page <= 0) {
-                this.page = this.maxPage;
+            if (this.page > 1) {
+                this.page--;
+                this.getVideos();
             }
-
-            this.getVideos();
         },
     },
 };
