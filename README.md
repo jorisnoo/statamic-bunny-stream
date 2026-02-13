@@ -1,6 +1,8 @@
 # Video Stream GDPR Compliant (aka Bunny Stream)
 
-> Bunny Stream is a Statamic add-on that integrates the Bunny Stream API for single stream libraries into the Statamic CP.
+> **Fork Notice:** This is a fork of [laborb/statamic-bunny-stream](https://github.com/niclasleonbock/statamic-bunny-stream) upgraded for **Statamic 6** and **Laravel 12**. Vue 2 components have been migrated to Vue 3. Public-facing frontend features (Antlers tags, frontend views) have been removed — this is now a **CP-only addon** for video management, the Bunny fieldtype, and uploads.
+
+Bunny Stream is a Statamic addon that integrates the Bunny Stream API for single stream libraries into the Statamic CP.
 
 ## Features
 
@@ -11,25 +13,27 @@
 - Bunny fieldtype for selecting videos in blueprints (works with Bard and Replicator)
 - GDPR/DSGVO-compliant video hosting with no cookies or consent manager required
 
-## Bunny Account Required 🐰
+## Requirements
 
-To use this addon, you'll need a Bunny.net account. If you don't have one yet, you can sign up using our 
-[affiliate link](https://bunny.net?ref=uhvsqhaw0n). By doing so, you'll be supporting the development of this 
-addon at no extra cost to you. 💙
+- PHP 8.3+
+- Statamic 6
 
-Thank you for your support! 🚀
+## Bunny Account Required
+
+To use this addon, you'll need a Bunny.net account. If you don't have one yet, you can sign up using the original author's
+[affiliate link](https://bunny.net?ref=uhvsqhaw0n).
 
 ## Installation
 
 Install the addon using composer:
 
 ```bash
-composer require laborb/statamic-bunny-stream
+composer require jorisnoo/statamic-bunny-stream
 ```
 
 ## Configuration
 
-You need to provide the following .env-Variables:
+You need to provide the following .env variables:
 
 ```bash
 BUNNY_LIBRARY_ID=yourid            # Your Bunny Stream LibraryID
@@ -67,16 +71,14 @@ Use the video browser in the Control Panel (under the Bunny Stream navigation it
 
 ## Disclaimer
 
-This addon is not affiliated with, endorsed by, or sponsored by Bunny.net. It is an independent project designed to 
-integrate Bunny.net's streaming services with Statamic. All trademarks, service marks, and company names mentioned 
+This addon is not affiliated with, endorsed by, or sponsored by Bunny.net. It is an independent project designed to
+integrate Bunny.net's streaming services with Statamic. All trademarks, service marks, and company names mentioned
 are the property of their respective owners.
 
-Users of this addon are responsible for complying with Bunny.net's terms of service and any applicable usage policies. 
-We recommend reviewing Bunny.net's official documentation and support channels for any inquiries related to their 
+Users of this addon are responsible for complying with Bunny.net's terms of service and any applicable usage policies.
+We recommend reviewing Bunny.net's official documentation and support channels for any inquiries related to their
 services.
 
-## Support
+## Issues
 
-If you have any questions, feature requests or find any bugs, feel free to [contact us](mailto:support@laborb.de).
-
-You can also just create an issue on Github. We will get back to you as soon as possible.
+If you find any bugs or have feature requests, please [open an issue](https://github.com/jorisnoo/statamic-bunny-stream/issues) on GitHub.
