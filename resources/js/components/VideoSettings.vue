@@ -22,36 +22,6 @@
                             <input type="text" id="title" name="title" v-model="videoTitle" class="input-text">
                         </div>
                     </div>
-
-                    <div class="px-2 m-0 @container form-group publish-field text-fieldtype w-full">
-                        <label for="thumbnail" class="block">
-                            {{ __('Thumbnail') }}
-                        </label>
-                        <div class="input-group">
-                            <Combobox
-                                ref="input"
-                                class="flex-1"
-                                :clearable="false"
-                                :disabled="false"
-                                :options="assetOptions"
-                                :placeholder="__('Select new thumbnail')"
-                                :searchable="true"
-                                :multiple="false"
-                                :close-on-select="true"
-                                :model-value="selectedThumbnails"
-                                @update:model-value="selectThumbnail">
-                                <template #option="{ label }">
-                                    {{ label }}
-                                </template>
-                                <template #selected-option="{ label }">
-                                    {{ label }}
-                                </template>
-                                <template #no-options>
-                                    <div class="text-sm text-gray-700 text-left py-2 px-4" v-text="__('No options to choose from.')" />
-                                </template>
-                            </Combobox>
-                        </div>
-                    </div>
                 </div>
                 <div class="px-5 py-3 bg-gray-200 rounded-b-lg border-t flex items-center justify-end text-sm">
                     <button class="text-gray hover:text-gray-900" @click="isOpen = false" v-text="__('Cancel')"/>
@@ -63,23 +33,20 @@
 </template>
 
 <script>
-import { Combobox } from '@statamic/cms/ui';
 import CogIcon from "../icons/Cog.vue";
 import {emitter} from '@/utils/emitter.js';
 
 export default {
-    components: {CogIcon, Combobox},
+    components: {CogIcon},
     inject: ['bunnyApiKey', 'bunnyHostname', 'bunnyLibrary'],
     props: {
         id: String,
         title: String,
-        assetOptions: [],
     },
     data() {
         return {
             isOpen: false,
             videoTitle: this.title,
-            selectedThumbnails: [],
         }
     },
     methods: {
@@ -87,11 +54,6 @@ export default {
             if (this.title !== this.videoTitle) {
                 this.$progress.start('title');
                 this.changeTitle();
-            }
-
-            if (this.selectedThumbnails.length > 0) {
-                this.$progress.start('thumbnail');
-                this.changeThumbnail();
             }
 
             this.isOpen = false;
@@ -120,33 +82,6 @@ export default {
                     this.$progress.complete('title');
                     console.error(error);
                 });
-        },
-        changeThumbnail() {
-            fetch(`https://video.bunnycdn.com/library/${this.bunnyLibrary}/videos/${this.id}/thumbnail?thumbnailUrl=${this.selectedThumbnails[0].url}`, {
-                method: 'POST',
-                headers: {
-                    Accept: 'application/json',
-                    AccessKey: this.bunnyApiKey,
-                },
-            })
-                .then((response) => {
-                    if (!response.ok) {
-                        throw new Error(`Failed to update thumbnail: ${response.status}`);
-                    }
-
-                    this.$toast.success(__('Thumbnail has been updated!'));
-                    this.thumbnailUrl = null;
-                    this.$progress.complete('thumbnail');
-                    emitter.emit('load');
-                })
-                .catch((error) => {
-                    this.$toast.error(__('An error occured while trying to update the thumbnail.'));
-                    this.$progress.complete('thumbnail');
-                    console.error(error);
-                });
-        },
-        selectThumbnail(value) {
-            this.selectedThumbnails = [value];
         },
     }
 }

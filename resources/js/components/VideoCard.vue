@@ -13,7 +13,7 @@
                         {{ currentVideo.title }}
                     </a>
                     <div class="flex gap-1">
-                        <VideoSettings :id="currentVideo.guid" :title="currentVideo.title" :assetOptions="assetOptions" />
+                        <VideoSettings :id="currentVideo.guid" :title="currentVideo.title" />
                         <button class="size-5" @click="confirmDeletion()">
                             <TrashIcon class="size-5" />
                         </button>
@@ -80,7 +80,6 @@ export default {
     inject: ['bunnyApiKey', 'bunnyHostname', 'bunnyLibrary'],
     props: {
         video: Object,
-        assetOptions: Array,
     },
     data() {
         return {

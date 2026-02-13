@@ -15,7 +15,7 @@
             <div id="card">
                 <div class="container w-full lg:w-4/5 mx-auto">
                     <div class="flex flex-col">
-                        <VideoCard v-for="video in result.items" v-bind:key="video.guid" :video="video" :assetOptions="assetOptions" />
+                        <VideoCard v-for="video in result.items" v-bind:key="video.guid" :video="video" />
                     </div>
 
                     <div v-if="result.totalItems > result.items.length" class="flex items-center justify-between">
@@ -65,12 +65,10 @@ export default {
             page: 1,
             maxPage: 1,
             itemsPerPage: 10,
-            assetOptions: [],
         };
     },
     created() {
         this.getVideos();
-        this.getAssets();
 
         emitter.on('load', (context) => {
             if (context && context.page) {
@@ -81,18 +79,6 @@ export default {
         });
     },
     methods: {
-        getAssets() {
-            fetch('/cp/bunny/assets/', {
-                headers: { Accept: 'application/json' },
-            })
-                .then((response) => response.json())
-                .then((data) => {
-                    this.assetOptions = data.items;
-                })
-                .catch((error) => {
-                    console.error(error);
-                });
-        },
         getVideos() {
             let url = `https://video.bunnycdn.com/library/${this.bunnyLibrary}/videos?page=${this.page}&itemsPerPage=${this.itemsPerPage}&orderBy=date`;
 
