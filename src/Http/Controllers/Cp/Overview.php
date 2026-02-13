@@ -2,14 +2,15 @@
 
 namespace Laborb\BunnyStream\Http\Controllers\Cp;
 
-use Illuminate\Contracts\View\View;
+use Inertia\Inertia;
+use Inertia\Response;
 use Statamic\Http\Controllers\CP\CpController;
 
 class Overview extends CpController
 {
-    public function __invoke(): View
+    public function __invoke(): Response
     {
-        return view('bunny::cp.overview', [
+        return Inertia::render('BunnyOverview', [
             'title' => __('Video Browser'),
             'addon' => [
                 'name' => 'Bunny Stream',
