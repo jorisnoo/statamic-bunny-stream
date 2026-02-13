@@ -10,6 +10,7 @@ import PlusIcon from "../icons/Plus.vue";
 import Uppy from '@uppy/core';
 import Dashboard from '@uppy/dashboard';
 import Tus from '@uppy/tus';
+import { markRaw } from 'vue';
 import { emitter } from '@/utils/emitter.js';
 import UppyBunnyCreator from '@/utils/UppyBunnyCreator.js';
 
@@ -42,7 +43,7 @@ export default {
         initializeUppy() {
             this.expirationTime = this.getExpirationTime();
 
-            this.uploader = new Uppy()
+            this.uploader = markRaw(new Uppy()
                 .use(Dashboard, {
                     inline: false,
                     trigger: '#bunny-upload',
@@ -90,7 +91,7 @@ export default {
                             throw new Error('Missing Bunny video ID');
                         }
                     }
-                });
+                }));
 
             this.uploader.on('complete', (result) => {
                 if (result.successful.length > 0) {
