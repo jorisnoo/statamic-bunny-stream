@@ -55,7 +55,7 @@
                 </div>
                 <div class="px-5 py-3 bg-gray-200 rounded-b-lg border-t flex items-center justify-end text-sm">
                     <button class="text-gray hover:text-gray-900" @click="isOpen = false" v-text="__('Cancel')"/>
-                    <button class="ml-4 btn-primary" :class="buttonClass" v-text="__('Save')" @click="save"/>
+                    <button class="ml-4 btn-primary" v-text="__('Save')" @click="save"/>
                 </div>
             </div>
         </modal>
