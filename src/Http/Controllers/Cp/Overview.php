@@ -11,7 +11,7 @@ class Overview extends CpController
     public function __invoke(): Response
     {
         return Inertia::render('BunnyOverview', [
-            'title' => __('Video Browser'),
+            'title' => __('Media Browser'),
             'addon' => [
                 'name' => 'Bunny Stream',
                 'url' => 'https://github.com/jorisnoo/statamic-bunny-stream',

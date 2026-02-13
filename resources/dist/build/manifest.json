@@ -2,7 +2,11 @@
   "resources/css/addon.css": {
     "file": "assets/addon.css",
     "src": "resources/css/addon.css",
-    "isEntry": true
+    "isEntry": true,
+    "name": "addon",
+    "names": [
+      "addon.css"
+    ]
   },
   "resources/js/addon.js": {
     "file": "assets/addon.js",

@@ -27,7 +27,7 @@
     "Title": "Titre",
     "To use this addon, you'll need a Bunny.net account. Make sure to add your credentials to the .env file.": "Pour utiliser cet addon, vous avez besoin d'un compte Bunny.net. Assurez-vous d'ajouter vos identifiants dans le fichier .env.",
     "Upload Video": "Télécharger la vidéo",
-    "Video Browser": "Explorateur de vidéos",
+    "Media Browser": "Explorateur de médias",
     "Video Settings": "Paramètres de la vidéo",
     "Video is being processed": "La vidéo est en cours de traitement",
     "Video title has been updated!": "Le titre de la vidéo a été mis à jour !",
