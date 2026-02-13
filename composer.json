@@ -1,5 +1,5 @@
 {
-    "name": "laborb/statamic-bunny-stream",
+    "name": "jorisnoo/statamic-bunny-stream",
     "description": "This addon provides a way to manage gdpr compliant video streams using Bunny.",
     "type": "statamic-addon",
     "keywords": ["statamic-addon","video","hosting","streaming","bunny.net"],
@@ -15,14 +15,16 @@
             "email": "support@laborb.de",
             "homepage": "https://www.laborb.de",
             "role": "Developer"
+        },
+        {
+            "name": "Joris Noordermeer",
+            "email": "contac@noordermeer.ch",
+            "role": "Developer"
         }
     ],
     "require": {
         "php": "^8.3",
         "statamic/cms": "^6.0"
-    },
-    "support": {
-        "email": "support@laborb.de"
     },
     "extra": {
         "statamic": {
