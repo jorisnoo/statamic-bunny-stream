@@ -7,13 +7,13 @@
             <a :href="videoUrl" target="_blank" class="">
                 <img :src="thumbnailUrl" class="aspect-video inset-0 h-full object-cover w-full" />
             </a>
-            <div class="sm:col-span-2 py-2 sm:py-4 px-2 sm:px-6 text-gray-800 flex flex-col justify-between gap-1 sm:shrink">
+            <div class="sm:col-span-2 py-2 sm:py-4 px-2 sm:px-6 text-gray-800 flex flex-col justify-between gap-1">
                 <div class="flex sm:flex-grow items-start justify-between gap-4 w-full">
-                    <a :href="videoUrl" target="_blank" class="flex-grow font-semibold text-base sm:text-lg leading-tight truncate">
+                    <a :href="videoUrl" target="_blank" class="flex-grow min-w-0 font-semibold text-base sm:text-lg leading-tight truncate">
                         {{ currentVideo.title }}
                     </a>
                     <div class="flex gap-1">
-                        <VideoSettings :id="currentVideo.guid" :title="currentVideo.title" :assetOptions="assetOptions" class="size-5" />
+                        <VideoSettings :id="currentVideo.guid" :title="currentVideo.title" :assetOptions="assetOptions" />
                         <button class="size-5" @click="confirmDeletion()">
                             <TrashIcon class="size-5" />
                         </button>

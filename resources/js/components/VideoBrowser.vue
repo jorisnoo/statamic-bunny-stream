@@ -1,6 +1,6 @@
 <template>
     <div>
-        <div class="container w-100 lg:w-4/5 mx-auto input-group mb-4">
+        <div class="container w-full lg:w-4/5 mx-auto input-group mb-4">
             <input type="text" :placeholder="__('Search videos')" @input="debouncedSearch" v-model="search" class="input-text" />
         </div>
         <div v-if="loading" class="flex items-center">
@@ -13,7 +13,7 @@
         </div>
         <div v-else-if="!loading && result.totalItems >= 1">
             <div id="card">
-                <div class="container w-100 lg:w-4/5 mx-auto">
+                <div class="container w-full lg:w-4/5 mx-auto">
                     <div class="flex flex-col">
                         <VideoCard v-for="video in result.items" v-bind:key="video.guid" :video="video" :assetOptions="assetOptions" />
                     </div>

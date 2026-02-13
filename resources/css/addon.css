@@ -1,5 +1,4 @@
 @import '@uppy/core/dist/style.css';
 @import '@uppy/dashboard/dist/style.css';
 
-@import "tailwindcss" layer(utilities);
-@import "tailwindcss/theme" layer(theme);
+@import "tailwindcss";

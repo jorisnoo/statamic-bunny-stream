@@ -1,5 +1,5 @@
 <template>
-    <div class="container w-100 lg:w-4/5 mx-auto">
+    <div class="container w-full lg:w-4/5 mx-auto">
         <div class="flex flex-col items-center justify-center gap-2">
             <h1 class="mb-2">{{ __('Bunny Account Required') }}</h1>
             <p class="text-sm">{{ __("To use this addon, you'll need a Bunny.net account. Make sure to add your credentials to the .env file.") }}</p>
