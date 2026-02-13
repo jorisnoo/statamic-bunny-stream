@@ -1,7 +1,7 @@
 <template>
     <div>
         <div
-            v-if="video.status >= 4"
+            v-if="currentVideo.status >= 4"
             class="sm:grid sm:grid-cols-3 overflow-hidden bg-white rounded shadow-xl w-full mb-4"
         >
             <a :href="videoUrl" target="_blank" class="">
@@ -10,10 +10,10 @@
             <div class="sm:col-span-2 py-2 sm:py-4 px-2 sm:px-6 text-gray-800 flex flex-col justify-between gap-1 sm:shrink">
                 <div class="flex sm:flex-grow items-start justify-between gap-4 w-full">
                     <a :href="videoUrl" target="_blank" class="flex-grow font-semibold text-base sm:text-lg leading-tight truncate">
-                        {{ video.title }}
+                        {{ currentVideo.title }}
                     </a>
                     <div class="flex gap-1">
-                        <VideoSettings :id="video.guid" :title="video.title" :assetOptions="assetOptions" class="size-5" />
+                        <VideoSettings :id="currentVideo.guid" :title="currentVideo.title" :assetOptions="assetOptions" class="size-5" />
                         <button class="size-5" @click="confirmDeletion()">
                             <TrashIcon class="size-5" />
                         </button>
@@ -28,11 +28,11 @@
                 <div class="text-xs md:text-sm text-gray-600 flex justify-between">
                     <div class="flex gap-2 items-center">
                         <CloudIcon class="text-gray-500 size-4" />
-                        {{ new Date(video.dateUploaded).toLocaleString() }}
+                        {{ new Date(currentVideo.dateUploaded).toLocaleString() }}
                     </div>
                     <div class="flex gap-2 items-center">
                         <EyeIcon class="text-gray-500 size-4" />
-                        {{ video.views }}
+                        {{ currentVideo.views }}
                     </div>
                 </div>
             </div>
@@ -42,7 +42,7 @@
             class="flex flex-col overflow-hidden bg-white rounded shadow-xl w-full mb-4 p-6 items-center justify-center"
         >
             <h2 class="text-lg">
-                {{ __('Video is being processed') }} &ndash; {{ video.encodeProgress * 2 }}%
+                {{ __('Video is being processed') }} &ndash; {{ currentVideo.encodeProgress * 2 }}%
             </h2>
             <p class="text-xs text-gray-600">
                 {{ __('This may take some time.') }}
@@ -56,9 +56,9 @@
             </div>
         </div>
 
-        <confirmation-modal
-            v-if="triggerDeletion"
-            :title="__('Delete video :title', {'title': this.video.title})"
+        <ui-confirmation-modal
+            v-model:open="triggerDeletion"
+            :title="__('Delete video :title', {'title': currentVideo.title})"
             @confirm="deleteVideo"
             @cancel="cancelDeletion"
             danger="true"
@@ -82,20 +82,18 @@ export default {
     props: {
         video: Object,
         assetOptions: Array,
-        loading: {
-            type: Boolean,
-            default: false
-        }
     },
     data() {
         return {
+            currentVideo: this.video,
+            isLoading: false,
             thumbnailUrl: `https://${this.bunnyHostname}/${this.video.guid}/${this.video.thumbnailFileName}`,
             videoUrl: `https://iframe.mediadelivery.net/play/${this.video.videoLibraryId}/${this.video.guid}`,
             triggerDeletion: false,
         }
     },
     mounted() {
-        if (this.video.status < 4) {
+        if (this.currentVideo.status < 4) {
             this.polling = setInterval(() => {
                 this.loadVideo();
             }, 5000);
@@ -106,20 +104,20 @@ export default {
             this.triggerDeletion = true;
         },
         loadVideo() {
-            this.loading = true;
+            this.isLoading = true;
 
             axios
                 .request({
                     method: 'GET',
-                    url: `https://video.bunnycdn.com/library/${this.bunnyLibrary}/videos/${this.video.guid}`,
+                    url: `https://video.bunnycdn.com/library/${this.bunnyLibrary}/videos/${this.currentVideo.guid}`,
                     headers: {
                         Accept: 'application/json',
                         AccessKey: this.bunnyApiKey,
                     },
                 })
                 .then(response => {
-                    this.video = response.data;
-                    if (this.video.status >= 4) {
+                    this.currentVideo = response.data;
+                    if (this.currentVideo.status >= 4) {
                         clearInterval(this.polling);
                         emitter.emit('load');
                     }
@@ -128,16 +126,16 @@ export default {
                     console.error(error);
                 })
                 .finally(() => {
-                    this.loading = false;
+                    this.isLoading = false;
                 });
         },
         deleteVideo() {
-            this.loading = true;
+            this.isLoading = true;
 
             axios
                 .request({
                     method: 'DELETE',
-                    url: `https://video.bunnycdn.com/library/${this.bunnyLibrary}/videos/${this.video.guid}`,
+                    url: `https://video.bunnycdn.com/library/${this.bunnyLibrary}/videos/${this.currentVideo.guid}`,
                     headers: {
                         Accept: 'application/json',
                         AccessKey: this.bunnyApiKey,
@@ -152,7 +150,7 @@ export default {
                     console.error(error);
                 })
                 .finally(() => {
-                    this.loading = false;
+                    this.isLoading = false;
                 });
         },
         cancelDeletion() {

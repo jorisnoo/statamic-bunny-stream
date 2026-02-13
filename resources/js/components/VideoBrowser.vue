@@ -34,7 +34,7 @@
                 </div>
             </div>
         </div>
-        <div v-else-if="this.search.length > 0" class="text-center text-sm">
+        <div v-else-if="search.length > 0" class="text-center text-sm">
             {{ __('No videos found.') }}
         </div>
         <button v-else @click="openUpload()" class="flex flex-col overflow-hidden border-gray-600 border-dashed border-2 rounded shadow-xl w-full mb-4 p-6 items-center justify-center">

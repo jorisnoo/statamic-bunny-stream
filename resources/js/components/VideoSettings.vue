@@ -5,9 +5,8 @@
         </button>
 
         <modal
-            v-if="isOpen"
+            v-model:open="isOpen"
             name="settings"
-            @closed="isOpen = false"
         >
             <div class="flex flex-col h-full">
                 <header
@@ -29,34 +28,28 @@
                             {{ __('Thumbnail') }}
                         </label>
                         <div class="input-group">
-                            <v-select
+                            <Combobox
                                 ref="input"
-                                :input-id="fieldId"
                                 class="flex-1"
-                                append-to-body
                                 :clearable="false"
                                 :disabled="false"
                                 :options="assetOptions"
                                 :placeholder="__('Select new thumbnail')"
                                 :searchable="true"
                                 :multiple="false"
-                                :reset-on-options-change="false"
                                 :close-on-select="true"
-                                :value="selectedThumbnails"
-                                @input="selectThumbnail"
-                                @focus="$emit('focus')"
-                                @search:focus="$emit('focus')"
-                                @search:blur="$emit('blur')">
+                                :model-value="selectedThumbnails"
+                                @update:model-value="selectThumbnail">
                                 <template #option="{ label }">
-                                    <template v-text="label"></template>
+                                    {{ label }}
                                 </template>
                                 <template #selected-option="{ label }">
-                                    <template v-text="label"></template>
+                                    {{ label }}
                                 </template>
                                 <template #no-options>
                                     <div class="text-sm text-gray-700 text-left py-2 px-4" v-text="__('No options to choose from.')" />
                                 </template>
-                            </v-select>
+                            </Combobox>
                         </div>
                     </div>
                 </div>
@@ -70,12 +63,13 @@
 </template>
 
 <script>
+import { Combobox } from '@statamic/cms/ui';
 import CogIcon from "../icons/Cog.vue";
 import axios from 'axios';
 import {emitter} from '@/utils/emitter.js';
 
 export default {
-    components: {CogIcon},
+    components: {CogIcon, Combobox},
     inject: ['bunnyApiKey', 'bunnyHostname', 'bunnyLibrary'],
     props: {
         id: String,
