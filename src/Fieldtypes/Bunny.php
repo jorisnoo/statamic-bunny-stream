@@ -1,6 +1,6 @@
 <?php
 
-namespace Laborb\BunnyStream\Fieldtypes;
+namespace Noo\BunnyStream\Fieldtypes;
 
 use Statamic\Fields\Fieldtype;
 

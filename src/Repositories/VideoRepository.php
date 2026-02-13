@@ -1,6 +1,6 @@
 <?php
 
-namespace Laborb\BunnyStream\Repositories;
+namespace Noo\BunnyStream\Repositories;
 
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;

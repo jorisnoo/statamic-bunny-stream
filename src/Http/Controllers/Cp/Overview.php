@@ -14,7 +14,7 @@ class Overview extends CpController
             'title' => __('Video Browser'),
             'addon' => [
                 'name' => 'Bunny Stream',
-                'url' => 'https://github.com/laborb/statamic-bunny-stream',
+                'url' => 'https://github.com/jorisnoo/statamic-bunny-stream',
             ],
             'bunny' => [
                 'apiKey' => config('statamic.bunny-stream.api_key'),

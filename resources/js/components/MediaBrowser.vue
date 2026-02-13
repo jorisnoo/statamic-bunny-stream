@@ -3,7 +3,7 @@
         <div class="mb-4">
             <Input
                 type="text"
-                :placeholder="__('Search media...')"
+                :placeholder="__('Search...')"
                 v-model="search"
                 @input="debouncedSearch"
             />

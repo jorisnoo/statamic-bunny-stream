@@ -1,6 +1,6 @@
 <?php
 
-namespace Laborb\BunnyStream;
+namespace Noo\BunnyStream;
 
 use Statamic\Providers\AddonServiceProvider;
 use Statamic\Facades\CP\Nav;
