@@ -5,7 +5,7 @@ import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig({
     build: {
-        target: 'esnext',
+        target: 'es2021',
         rollupOptions: {
             output: {
                 entryFileNames: 'assets/[name].js',
