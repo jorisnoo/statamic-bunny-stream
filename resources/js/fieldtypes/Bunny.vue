@@ -17,8 +17,8 @@
                 <template #option="{ label }">
                     {{ label }}
                 </template>
-                <template #selected-option="{ label }">
-                    {{ label }}
+                <template #selected-option="{ option }">
+                    {{ option.label }}
                 </template>
                 <template #no-options>
                     <div class="text-sm text-gray-700 text-left py-2 px-4" v-text="__('No options to choose from.')" />
