@@ -10,7 +10,7 @@
             :searchable="true"
             :multiple="false"
             :close-on-select="true"
-            :model-value="selectedOptions"
+            :model-value="value"
             @update:model-value="comboboxUpdated"
             @focus="$emit('focus')"
             @blur="$emit('blur')">
@@ -28,7 +28,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, onMounted } from 'vue';
 import { Fieldtype } from '@statamic/cms';
 import { Combobox } from '@statamic/cms/ui';
 const emit = defineEmits(Fieldtype.emits);
@@ -40,14 +40,6 @@ const input = ref(null);
 const loading = ref(true);
 const videos = ref([]);
 const options = ref([]);
-
-const selectedOptions = computed(() => {
-    if (! props.value) {
-        return null;
-    }
-
-    return options.value.find(opt => opt.value === props.value) || { value: props.value, label: props.value };
-});
 
 function getVideos() {
     fetch(`https://video.bunnycdn.com/library/${props.meta.library}/videos?page=1&itemsPerPage=100&orderBy=date`, {
@@ -77,11 +69,7 @@ function arrangeVideos() {
 }
 
 function comboboxUpdated(value) {
-    if (value) {
-        update(value.value);
-    } else {
-        update(null);
-    }
+    update(value);
 }
 
 onMounted(() => {
