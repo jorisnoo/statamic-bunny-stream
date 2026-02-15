@@ -17,4 +17,15 @@ class Bunny extends Fieldtype
             'hostname' => config('statamic.bunny-stream.hostname'),
         ];
     }
+
+    public function augment($value): ?string
+    {
+        if (! $value) {
+            return null;
+        }
+
+        $hostname = config('statamic.bunny-stream.hostname');
+
+        return "https://{$hostname}/{$value}/playlist.m3u8";
+    }
 }
