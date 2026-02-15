@@ -42,15 +42,11 @@ const videos = ref([]);
 const options = ref([]);
 
 const selectedOptions = computed(() => {
-    let selections = props.value || [];
-
-    if (typeof selections === 'string' || typeof selections === 'number') {
-        selections = [selections];
+    if (! props.value) {
+        return null;
     }
 
-    return selections.map(value => {
-        return options.value.find(opt => opt.value === value) || { value, label: value };
-    });
+    return options.value.find(opt => opt.value === props.value) || { value: props.value, label: props.value };
 });
 
 function getVideos() {
