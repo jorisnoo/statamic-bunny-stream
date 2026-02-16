@@ -3,7 +3,7 @@
         <Combobox
             ref="input"
             class="flex-1"
-            :clearable="false"
+            :clearable="true"
             :disabled="false"
             :options="options"
             :placeholder="__('Select Video...')"
