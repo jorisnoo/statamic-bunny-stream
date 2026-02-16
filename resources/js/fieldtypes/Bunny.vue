@@ -6,7 +6,7 @@
             :clearable="true"
             :disabled="false"
             :options="options"
-            :placeholder="__('Select Video...')"
+            :placeholder="__('Select Media...')"
             :searchable="true"
             :multiple="false"
             :close-on-select="true"
