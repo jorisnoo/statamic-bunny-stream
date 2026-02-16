@@ -37,6 +37,6 @@ class ServiceProvider extends AddonServiceProvider
 
         $this->publishes([
             __DIR__ . '/../config/bunny-stream.php' => config_path('statamic/bunny-stream.php'),
-        ], 'statamic-bunny-stream-config');
+        ], 'bunny-stream-config');
     }
 }
