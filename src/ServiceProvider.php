@@ -9,10 +9,14 @@ class ServiceProvider extends AddonServiceProvider
 {
     protected $viewNamespace = 'bunny';
 
+    protected $commands = [
+        Console\Commands\CleanupCommand::class,
+    ];
+
     protected $vite = [
         'input' => [
-            'resources/js/addon.js',
-            'resources/css/addon.css',
+            'resources/js/bunny-stream.js',
+            'resources/css/bunny-stream.css',
         ],
         'publicDirectory' => 'resources/dist',
     ];

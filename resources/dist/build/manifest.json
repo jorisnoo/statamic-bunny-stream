@@ -1,17 +1,17 @@
 {
-  "resources/css/addon.css": {
-    "file": "assets/addon.css",
-    "src": "resources/css/addon.css",
+  "resources/css/bunny-stream.css": {
+    "file": "assets/bunny-stream-Bba9w6u3.css",
+    "src": "resources/css/bunny-stream.css",
     "isEntry": true,
-    "name": "addon",
+    "name": "bunny-stream",
     "names": [
-      "addon.css"
+      "bunny-stream.css"
     ]
   },
-  "resources/js/addon.js": {
-    "file": "assets/addon.js",
-    "name": "addon",
-    "src": "resources/js/addon.js",
+  "resources/js/bunny-stream.js": {
+    "file": "assets/bunny-stream-9QKk81wG.js",
+    "name": "bunny-stream",
+    "src": "resources/js/bunny-stream.js",
     "isEntry": true
   }
 }

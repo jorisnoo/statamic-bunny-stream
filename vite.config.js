@@ -8,16 +8,16 @@ export default defineConfig({
         target: 'esnext',
         rollupOptions: {
             output: {
-                entryFileNames: 'assets/[name].js',
-                assetFileNames: 'assets/[name].[ext]',
+                entryFileNames: 'assets/[name]-[hash].js',
+                assetFileNames: 'assets/[name]-[hash].[ext]',
             },
         },
     },
     plugins: [
         laravel({
             input: [
-                'resources/js/addon.js',
-                'resources/css/addon.css',
+                'resources/js/bunny-stream.js',
+                'resources/css/bunny-stream.css',
             ],
             publicDirectory: 'resources/dist',
         }),
