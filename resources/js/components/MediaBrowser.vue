@@ -1,6 +1,6 @@
 <template>
     <div>
-        <div class="mb-4">
+        <div class="tw:mb-4">
             <Input
                 type="text"
                 :placeholder="__('Search...')"
@@ -9,16 +9,16 @@
             />
         </div>
 
-        <div v-if="loading" class="flex items-center justify-center py-12">
-            <SpinnerIcon class="size-8 animate-spin text-gray-500" />
+        <div v-if="loading" class="tw:flex tw:items-center tw:justify-center tw:py-12">
+            <SpinnerIcon class="tw:size-8 tw:animate-spin tw:text-gray-500" />
         </div>
 
-        <div v-else-if="result.totalItems >= 1" class="card p-0">
+        <div v-else-if="result.totalItems >= 1" class="card tw:p-0">
             <table class="data-table">
                 <thead>
                     <tr>
                         <th>{{ __('File') }}</th>
-                        <th class="hidden md:table-cell">{{ __('Date') }}</th>
+                        <th class="tw:hidden tw:md:table-cell">{{ __('Date') }}</th>
                         <th class="actions-column" />
                     </tr>
                 </thead>
@@ -31,22 +31,22 @@
                 </tbody>
             </table>
 
-            <div v-if="result.totalItems > itemsPerPage" class="flex items-center justify-between border-t px-4 py-2 text-sm text-gray-700 dark:text-dark-150">
+            <div v-if="result.totalItems > itemsPerPage" class="tw:flex tw:items-center tw:justify-between tw:border-t tw:px-4 tw:py-2 tw:text-sm tw:text-gray-700 tw:dark:text-dark-150">
                 <span>{{ rangeStart }}–{{ rangeEnd }} {{ __('of') }} {{ result.totalItems }}</span>
-                <div class="flex gap-1">
+                <div class="tw:flex tw:gap-1">
                     <button class="btn-flat btn-sm" :disabled="page <= 1" @click="prevPage">&laquo;</button>
                     <button class="btn-flat btn-sm" :disabled="page >= maxPage" @click="nextPage">&raquo;</button>
                 </div>
             </div>
         </div>
 
-        <div v-else-if="search.length > 0" class="text-center text-sm text-gray-500 py-8">
+        <div v-else-if="search.length > 0" class="tw:text-center tw:text-sm tw:text-gray-500 tw:py-8">
             {{ __('No media found.') }}
         </div>
 
-        <div v-else class="text-center text-sm text-gray-500 py-8">
+        <div v-else class="tw:text-center tw:text-sm tw:text-gray-500 tw:py-8">
             <p>{{ __('No media yet.') }}</p>
-            <button class="btn-primary mt-4" @click="openUpload">
+            <button class="btn-primary tw:mt-4" @click="openUpload">
                 {{ __('Upload Media') }}
             </button>
         </div>

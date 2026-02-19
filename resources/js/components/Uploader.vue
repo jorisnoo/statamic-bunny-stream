@@ -58,7 +58,7 @@ export default {
                                     'input',
                                     {
                                         type: 'text',
-                                        class: 'uppy-u-reset uppy-c-textInput uppy-Dashboard-FileCard-input bg-gray-300',
+                                        class: 'uppy-u-reset uppy-c-textInput uppy-Dashboard-FileCard-input tw:bg-gray-300',
                                         value: value,
                                         placeholder: __('Bunny ID'),
                                         disabled: true

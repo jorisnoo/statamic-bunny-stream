@@ -2,7 +2,7 @@
     <div>
         <Combobox
             ref="input"
-            class="flex-1"
+            class="tw:flex-1"
             :clearable="true"
             :disabled="false"
             :options="options"
@@ -21,7 +21,7 @@
                     {{ option.label }}
                 </template>
                 <template #no-options>
-                    <div class="text-sm text-gray-700 text-left py-2 px-4" v-text="__('No options to choose from.')" />
+                    <div class="tw:text-sm tw:text-gray-700 tw:text-left tw:py-2 tw:px-4" v-text="__('No options to choose from.')" />
                 </template>
         </Combobox>
     </div>
