@@ -2,8 +2,10 @@
 
 namespace Noo\BunnyStream;
 
-use Statamic\Providers\AddonServiceProvider;
+use Illuminate\Support\Facades\File;
 use Statamic\Facades\CP\Nav;
+use Statamic\Providers\AddonServiceProvider;
+use Statamic\Statamic;
 
 class ServiceProvider extends AddonServiceProvider
 {
@@ -24,6 +26,24 @@ class ServiceProvider extends AddonServiceProvider
     protected $routes = [
         'cp' => __DIR__ . '/../routes/cp.php',
     ];
+
+    protected function bootPublishAfterInstall(): self
+    {
+        Statamic::afterInstalled(function ($command) {
+            $buildDir = public_path('vendor/statamic-bunny-stream/build');
+
+            if (File::isDirectory($buildDir)) {
+                File::deleteDirectory($buildDir);
+            }
+
+            $command->call('vendor:publish', [
+                '--tag' => $this->getAddon()->slug(),
+                '--force' => true,
+            ]);
+        });
+
+        return $this;
+    }
 
     public function bootAddon(): void
     {
