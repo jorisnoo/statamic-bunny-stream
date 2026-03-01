@@ -12,10 +12,13 @@ class Bunny extends Fieldtype
 
     public function preload(): array
     {
+        $thumbnailUrl = cp_route('bunny.cp.thumbnail', '__GUID__');
+
         $data = [
-            'library'  => config('statamic.bunny-stream.library_id'),
-            'hostname' => config('statamic.bunny-stream.hostname'),
-            'listUrl'  => cp_route('bunny.cp.videoList'),
+            'library'      => config('statamic.bunny-stream.library_id'),
+            'hostname'     => config('statamic.bunny-stream.hostname'),
+            'listUrl'      => cp_route('bunny.cp.videoList'),
+            'thumbnailUrl' => $thumbnailUrl,
         ];
 
         if ($value = $this->field->value()) {
@@ -23,6 +26,7 @@ class Bunny extends Fieldtype
             if ($video) {
                 $data['initialTitle'] = $video['title'];
                 $data['initialDate'] = $video['dateUploaded'];
+                $data['initialThumbnail'] = str_replace('__GUID__', $value, $thumbnailUrl);
             }
         }
 

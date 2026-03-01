@@ -14,10 +14,8 @@
             @update:model-value="comboboxUpdated"
             @focus="$emit('focus')"
             @blur="$emit('blur')">
-                <template #option="{ label }">
-                    {{ label }}
-                </template>
                 <template #selected-option="{ option }">
+                    <img v-if="option.image" :src="option.image" class="tw:w-5 tw:h-5 tw:rounded tw:object-cover tw:mr-1.5" />
                     {{ option.label }}
                 </template>
                 <template #no-options>
@@ -45,7 +43,11 @@ if (props.value && props.meta.initialTitle) {
     const label = props.meta.initialDate
         ? `${props.meta.initialTitle} (${new Date(props.meta.initialDate).toLocaleString()})`
         : props.meta.initialTitle;
-    options.value = [{ value: props.value, label }];
+    options.value = [{ value: props.value, label, image: props.meta.initialThumbnail }];
+}
+
+function thumbnailUrl(guid) {
+    return props.meta.thumbnailUrl.replace('__GUID__', guid);
 }
 
 function getVideos() {
@@ -65,6 +67,7 @@ function arrangeVideos() {
     options.value = videos.value.items.map((video) => ({
         value: video.guid,
         label: `${video.title} (${new Date(video.dateUploaded).toLocaleString()})`,
+        image: thumbnailUrl(video.guid),
     }));
 }
 
