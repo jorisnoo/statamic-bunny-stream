@@ -41,16 +41,15 @@ const loading = ref(true);
 const videos = ref([]);
 const options = ref([]);
 
+if (props.value && props.meta.initialTitle) {
+    options.value = [{ value: props.value, label: props.meta.initialTitle }];
+}
+
 function getVideos() {
-    fetch(`https://video.bunnycdn.com/library/${props.meta.library}/videos?page=1&itemsPerPage=100&orderBy=date`, {
-        headers: {
-            Accept: 'application/json',
-            AccessKey: props.meta.api,
-        },
-    })
+    fetch(props.meta.listUrl)
         .then((response) => response.json())
-        .then((data) => {
-            videos.value = data;
+        .then((items) => {
+            videos.value = { items };
             loading.value = false;
             arrangeVideos();
         })
@@ -60,12 +59,10 @@ function getVideos() {
 }
 
 function arrangeVideos() {
-    videos.value.items.forEach((video) => {
-        options.value.push({
-            value: video.guid,
-            label: `${video.title} (${new Date(video.dateUploaded).toLocaleString()})`,
-        });
-    });
+    options.value = videos.value.items.map((video) => ({
+        value: video.guid,
+        label: `${video.title} (${new Date(video.dateUploaded).toLocaleString()})`,
+    }));
 }
 
 function comboboxUpdated(value) {

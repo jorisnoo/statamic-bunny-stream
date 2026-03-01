@@ -2,6 +2,7 @@
 
 namespace Noo\BunnyStream\Fieldtypes;
 
+use Noo\BunnyStream\Repositories\VideoRepository;
 use Statamic\Fields\Fieldtype;
 
 class Bunny extends Fieldtype
@@ -11,11 +12,20 @@ class Bunny extends Fieldtype
 
     public function preload(): array
     {
-        return [
-            'api' => config('statamic.bunny-stream.api_key'),
-            'library' => config('statamic.bunny-stream.library_id'),
+        $data = [
+            'library'  => config('statamic.bunny-stream.library_id'),
             'hostname' => config('statamic.bunny-stream.hostname'),
+            'listUrl'  => cp_route('bunny.cp.videoList'),
         ];
+
+        if ($value = $this->field->value()) {
+            $video = app(VideoRepository::class)->fetch($value);
+            if ($video) {
+                $data['initialTitle'] = $video['title'];
+            }
+        }
+
+        return $data;
     }
 
     public function augment($value): ?string
