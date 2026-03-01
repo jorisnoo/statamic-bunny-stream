@@ -7,6 +7,10 @@
 ### Features
 
 - proxy Bunny video list through CP route and prefill initial title in fieldtype ([7631c6e](https://github.com/jorisnoo/statamic-bunny-stream/commit/7631c6eeb8a5f0ecf4f5348128f8c53ae5ed5853))
+
+### Build System
+
+- compile frontend assets ([5635fbe](https://github.com/jorisnoo/statamic-bunny-stream/commit/5635fbeb8f928e910e8c484a66695b24b5006a3a))
 ## [2.1.0](https://github.com/jorisnoo/statamic-bunny-stream/releases/tag/v2.1.0) (2026-03-01)
 
 ### Features
