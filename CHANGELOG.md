@@ -2,6 +2,11 @@
 
 ## [2.0.0](https://github.com/jorisnoo/statamic-bunny-stream/releases/tag/2.0.0) (2026-02-13)
 
+## [2.1.1](https://github.com/jorisnoo/statamic-bunny-stream/releases/tag/v2.1.1) (2026-03-01)
+
+### Features
+
+- proxy Bunny video list through CP route and prefill initial title in fieldtype ([7631c6e](https://github.com/jorisnoo/statamic-bunny-stream/commit/7631c6eeb8a5f0ecf4f5348128f8c53ae5ed5853))
 ## [2.1.0](https://github.com/jorisnoo/statamic-bunny-stream/releases/tag/v2.1.0) (2026-03-01)
 
 ### Features
