@@ -37,7 +37,9 @@ jobs:
       - name: Build assets
         run: npm run build
 
+      - name: Stage built assets
+        run: git add --force resources/dist/
+
       - uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: 'build: compile frontend assets'
-          file_pattern: 'resources/dist/*'

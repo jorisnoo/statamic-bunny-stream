@@ -4,15 +4,6 @@ import statamic from '@statamic/cms/vite-plugin';
 import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig({
-    build: {
-        target: 'esnext',
-        rollupOptions: {
-            output: {
-                entryFileNames: 'assets/[name]-[hash].js',
-                assetFileNames: 'assets/[name]-[hash].[ext]',
-            },
-        },
-    },
     plugins: [
         laravel({
             input: [
