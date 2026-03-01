@@ -22,6 +22,7 @@ class Bunny extends Fieldtype
             $video = app(VideoRepository::class)->fetch($value);
             if ($video) {
                 $data['initialTitle'] = $video['title'];
+                $data['initialDate'] = $video['dateUploaded'];
             }
         }
 

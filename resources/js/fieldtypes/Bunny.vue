@@ -42,7 +42,10 @@ const videos = ref([]);
 const options = ref([]);
 
 if (props.value && props.meta.initialTitle) {
-    options.value = [{ value: props.value, label: props.meta.initialTitle }];
+    const label = props.meta.initialDate
+        ? `${props.meta.initialTitle} (${new Date(props.meta.initialDate).toLocaleString()})`
+        : props.meta.initialTitle;
+    options.value = [{ value: props.value, label }];
 }
 
 function getVideos() {
