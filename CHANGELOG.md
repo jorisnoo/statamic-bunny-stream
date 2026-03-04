@@ -2,6 +2,26 @@
 
 ## [2.0.0](https://github.com/jorisnoo/statamic-bunny-stream/releases/tag/2.0.0) (2026-02-13)
 
+## [2.1.2](https://github.com/jorisnoo/statamic-bunny-stream/releases/tag/v2.1.2) (2026-03-04)
+
+### Features
+
+- proxy Bunny video list through CP route and prefill initial title in fieldtype ([7631c6e](https://github.com/jorisnoo/statamic-bunny-stream/commit/7631c6eeb8a5f0ecf4f5348128f8c53ae5ed5853))
+
+### Build System
+
+- compile frontend assets ([05bfba9](https://github.com/jorisnoo/statamic-bunny-stream/commit/05bfba96a99cab503517d248024672e5ffc49378))
+- simplify vite config and fix asset commit workflow to use git add --force ([2758643](https://github.com/jorisnoo/statamic-bunny-stream/commit/2758643395d4866edf5a7e105cd573c39e7b9645))
+- compile frontend assets ([03f9919](https://github.com/jorisnoo/statamic-bunny-stream/commit/03f9919e0b81f689aae645df9688a9c08209a810))
+- compile frontend assets ([1369ff4](https://github.com/jorisnoo/statamic-bunny-stream/commit/1369ff42c41fb75a529b64c7ec80dc3343ef2688))
+- upgrade deps ([b899aa0](https://github.com/jorisnoo/statamic-bunny-stream/commit/b899aa047248cd0685b0c731989de648dfad1be5))
+- compile frontend assets ([9c20f49](https://github.com/jorisnoo/statamic-bunny-stream/commit/9c20f4968706e0838ef85bd6e10c2fc940a38161))
+- compile frontend assets ([589e98e](https://github.com/jorisnoo/statamic-bunny-stream/commit/589e98e01d358d3439338f6c09ced5d444bf39c5))
+- compile frontend assets ([5635fbe](https://github.com/jorisnoo/statamic-bunny-stream/commit/5635fbeb8f928e910e8c484a66695b24b5006a3a))
+
+### Continuous Integration
+
+- simplify asset commit workflow by using file_pattern instead of manual git add ([f431c04](https://github.com/jorisnoo/statamic-bunny-stream/commit/f431c04feff90e405bc62ee82523ccaec96693e4))
 ## [2.1.1](https://github.com/jorisnoo/statamic-bunny-stream/releases/tag/v2.1.1) (2026-03-04)
 
 ### Features
