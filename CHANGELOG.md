@@ -2,6 +2,15 @@
 
 ## [2.0.0](https://github.com/jorisnoo/statamic-bunny-stream/releases/tag/2.0.0) (2026-02-13)
 
+## [2.1.3](https://github.com/jorisnoo/statamic-bunny-stream/releases/tag/v2.1.3) (2026-03-27)
+
+### Code Refactoring
+
+- make cache operations explicit ([7a256e6](https://github.com/jorisnoo/statamic-bunny-stream/commit/7a256e642649650a04f0fc7cbdada3eed444bed2))
+
+### Continuous Integration
+
+- add dependabot configuration and auto-merge workflow ([2abca99](https://github.com/jorisnoo/statamic-bunny-stream/commit/2abca995fa0a0c19edc86a6477cfe3b4faa47ceb))
 ## [2.1.2](https://github.com/jorisnoo/statamic-bunny-stream/releases/tag/v2.1.2) (2026-03-04)
 
 ### Features
