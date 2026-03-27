@@ -19,21 +19,20 @@ class Thumbnail extends CpController
 
         $cacheKey = 'bunny:thumb:' . $guid;
 
-        $image = Cache::remember($cacheKey, now()->addHours(24), function () use ($video, $guid) {
+        $image = Cache::get($cacheKey);
+
+        if (! $image) {
             $hostname = config('statamic.bunny-stream.hostname');
             $url = "https://{$hostname}/{$guid}/{$video['thumbnailFileName']}";
 
             $response = Http::get($url);
 
             if (! $response->successful()) {
-                return null;
+                abort(404);
             }
 
-            return $response->body();
-        });
-
-        if (! $image) {
-            abort(404);
+            $image = $response->body();
+            Cache::put($cacheKey, $image, now()->addHours(24));
         }
 
         return response($image)

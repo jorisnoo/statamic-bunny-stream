@@ -37,25 +37,33 @@ class VideoRepository
 
     public function fetch(string $video): ?array
     {
-        return Cache::rememberForever('bunny:' . $video, function () use ($video) {
-            try {
-                $result = Http::withHeaders([
-                    'Accept' => 'application/json',
-                    'AccessKey' => config('statamic.bunny-stream.api_key'),
-                ])->get(vsprintf('https://video.bunnycdn.com/library/%s/videos/%s', [
-                    config('statamic.bunny-stream.library_id'),
-                    $video,
-                ]));
+        $cacheKey = 'bunny:' . $video;
 
-                if (!$result->successful()) {
-                    throw new \Exception('Unable to find video.');
-                }
-            } catch (\Throwable $e) {
-                Log::error($e->getMessage());
-                return null;
+        if (Cache::has($cacheKey)) {
+            return Cache::get($cacheKey);
+        }
+
+        try {
+            $result = Http::withHeaders([
+                'Accept' => 'application/json',
+                'AccessKey' => config('statamic.bunny-stream.api_key'),
+            ])->get(vsprintf('https://video.bunnycdn.com/library/%s/videos/%s', [
+                config('statamic.bunny-stream.library_id'),
+                $video,
+            ]));
+
+            if (! $result->successful()) {
+                throw new \Exception('Unable to find video.');
             }
+        } catch (\Throwable $e) {
+            Log::error($e->getMessage());
 
-            return $result->json();
-        });
+            return null;
+        }
+
+        $data = $result->json();
+        Cache::forever($cacheKey, $data);
+
+        return $data;
     }
 }
