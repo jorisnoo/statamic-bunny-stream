@@ -25,7 +25,9 @@ class Thumbnail extends CpController
             $hostname = config('statamic.bunny-stream.hostname');
             $url = "https://{$hostname}/{$guid}/{$video['thumbnailFileName']}";
 
-            $response = Http::get($url);
+            $response = Http::withHeaders([
+                'Referer' => config('app.url'),
+            ])->get($url);
 
             if (! $response->successful()) {
                 abort(404);
