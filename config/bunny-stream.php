@@ -19,4 +19,9 @@ return [
 
     // Token expiry time in hours. Defaults to 24 hours.
     'token_expiry' => env('BUNNY_STREAM_TOKEN_EXPIRY', 24),
+
+    // The Laravel filesystem disk to use for video backups.
+    // Set to a disk name (e.g., 'local', 's3') to enable the bunny-stream:backup command.
+    // Leave null to disable the backup feature.
+    'backup_disk' => env('BUNNY_STREAM_BACKUP_DISK'),
 ];

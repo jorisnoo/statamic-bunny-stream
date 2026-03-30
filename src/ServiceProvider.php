@@ -13,6 +13,7 @@ class ServiceProvider extends AddonServiceProvider
 
     protected $commands = [
         Console\Commands\CleanupCommand::class,
+        Console\Commands\BackupCommand::class,
     ];
 
     protected $vite = [
