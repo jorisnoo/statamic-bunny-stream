@@ -1,69 +1,15 @@
 <template>
-    <tr>
+    <tr
+        :class="currentVideo.status >= 4 ? 'tw:cursor-pointer hover:tw:bg-gray-50 dark:hover:tw:bg-dark-400' : ''"
+        @click="currentVideo.status >= 4 && $emit('select', currentVideo)"
+    >
         <td>
             <div class="tw:flex tw:items-center tw:gap-2">
                 <template v-if="currentVideo.status >= 4">
-                    <div class="tw:relative tw:shrink-0 tw:group">
-                        <a :href="videoUrl" target="_blank">
-                            <img :src="thumbnailUrl" class="tw:size-16 tw:rounded tw:object-cover" />
-                        </a>
-                        <button
-                            v-if="!isUploadingThumbnail"
-                            @click.prevent="selectThumbnail"
-                            class="tw:absolute tw:inset-0 tw:flex tw:items-center tw:justify-center tw:bg-black/50 tw:rounded tw:opacity-0 tw:group-hover:opacity-100 tw:transition-opacity tw:cursor-pointer"
-                            :title="__('Select new thumbnail')"
-                        >
-                            <svg class="tw:size-5 tw:text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909M3.75 21h16.5A2.25 2.25 0 0 0 22.5 18.75V5.25A2.25 2.25 0 0 0 20.25 3H3.75A2.25 2.25 0 0 0 1.5 5.25v13.5A2.25 2.25 0 0 0 3.75 21Z" />
-                            </svg>
-                        </button>
-                        <div
-                            v-if="isUploadingThumbnail"
-                            class="tw:absolute tw:inset-0 tw:flex tw:items-center tw:justify-center tw:bg-black/50 tw:rounded"
-                        >
-                            <svg class="tw:size-5 tw:animate-spin tw:text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                <circle class="tw:opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-                                <path class="tw:opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                            </svg>
-                        </div>
-                        <input
-                            ref="thumbnailInput"
-                            type="file"
-                            accept="image/jpeg,image/png"
-                            class="tw:hidden"
-                            @change="uploadThumbnail"
-                        />
-                    </div>
-                    <template v-if="!isEditing">
-                        <a :href="videoUrl" target="_blank" class="tw:text-sm tw:font-medium tw:truncate">
-                            {{ currentVideo.title }}
-                        </a>
-                        <button @click="startEditing" class="tw:text-gray-400 tw:hover:text-gray-700 tw:dark:hover:text-gray-200 tw:cursor-pointer tw:shrink-0">
-                            <svg class="tw:size-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Zm0 0L19.5 7.125" />
-                            </svg>
-                        </button>
-                    </template>
-                    <template v-else>
-                        <input
-                            ref="titleInput"
-                            v-model="editTitle"
-                            type="text"
-                            class="tw:text-sm tw:font-medium tw:border tw:border-gray-400 tw:dark:border-dark-200 tw:rounded tw:px-2 tw:py-1 tw:w-full tw:bg-white tw:dark:bg-dark-500"
-                            @keydown.enter="saveTitle"
-                            @keydown.escape="cancelEditing"
-                        />
-                        <button @click="saveTitle" class="tw:text-gray-400 tw:hover:text-green-600 tw:cursor-pointer tw:shrink-0">
-                            <svg class="tw:size-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" />
-                            </svg>
-                        </button>
-                        <button @click="cancelEditing" class="tw:text-gray-400 tw:hover:text-red-500 tw:cursor-pointer tw:shrink-0">
-                            <svg class="tw:size-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
-                            </svg>
-                        </button>
-                    </template>
+                    <img :src="thumbnailUrl" class="tw:size-16 tw:rounded tw:object-cover tw:shrink-0" />
+                    <span class="tw:text-sm tw:font-medium tw:truncate">
+                        {{ currentVideo.title }}
+                    </span>
                 </template>
                 <template v-else>
                     <div class="tw:size-16 tw:rounded tw:bg-gray-300 tw:dark:bg-dark-200 tw:flex tw:items-center tw:justify-center tw:shrink-0">
@@ -87,7 +33,7 @@
             </span>
         </td>
         <td class="actions-column tw:!pr-4">
-            <button @click="confirmDeletion" class="tw:text-gray-500 tw:hover:text-red-500 tw:cursor-pointer">
+            <button @click.stop="confirmDeletion" class="tw:text-gray-500 tw:hover:text-red-500 tw:cursor-pointer">
                 <svg class="tw:size-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
                 </svg>
@@ -114,15 +60,12 @@ export default {
     props: {
         video: Object,
     },
+    emits: ['select'],
     data() {
         return {
             currentVideo: this.video,
             isLoading: false,
-            videoUrl: `https://iframe.mediadelivery.net/play/${this.video.videoLibraryId}/${this.video.guid}`,
             triggerDeletion: false,
-            isEditing: false,
-            editTitle: '',
-            isUploadingThumbnail: false,
             thumbnailCacheBuster: '',
         }
     },
@@ -138,6 +81,13 @@ export default {
                 this.loadVideo();
             }, 5000);
         }
+
+        emitter.on(`thumbnail-updated:${this.currentVideo.guid}`, () => {
+            this.thumbnailCacheBuster = Date.now();
+        });
+    },
+    beforeUnmount() {
+        emitter.off(`thumbnail-updated:${this.currentVideo.guid}`);
     },
     methods: {
         formatDate(dateString) {
@@ -203,94 +153,6 @@ export default {
         },
         cancelDeletion() {
             this.triggerDeletion = false;
-        },
-        startEditing() {
-            this.editTitle = this.currentVideo.title;
-            this.isEditing = true;
-
-            this.$nextTick(() => {
-                this.$refs.titleInput.focus();
-                this.$refs.titleInput.select();
-            });
-        },
-        saveTitle() {
-            const title = this.editTitle.trim();
-
-            if (! title || title === this.currentVideo.title) {
-                this.isEditing = false;
-                return;
-            }
-
-            fetch(`https://video.bunnycdn.com/library/${this.bunnyLibrary}/videos/${this.currentVideo.guid}`, {
-                method: 'POST',
-                headers: {
-                    Accept: 'application/json',
-                    'Content-Type': 'application/*+json',
-                    AccessKey: this.bunnyApiKey,
-                },
-                body: JSON.stringify({ title }),
-            })
-                .then((response) => {
-                    if (! response.ok) {
-                        throw new Error('Failed to update title');
-                    }
-
-                    this.currentVideo.title = title;
-                    this.isEditing = false;
-                    Statamic.$toast.success(__('Title updated'));
-                })
-                .catch((error) => {
-                    console.error(error);
-                    Statamic.$toast.error(__('Failed to update title'));
-                });
-        },
-        cancelEditing() {
-            this.isEditing = false;
-        },
-        selectThumbnail() {
-            this.$refs.thumbnailInput.click();
-        },
-        uploadThumbnail(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-
-            this.isUploadingThumbnail = true;
-
-            fetch(`https://video.bunnycdn.com/library/${this.bunnyLibrary}/videos/${this.currentVideo.guid}/thumbnail`, {
-                method: 'POST',
-                headers: {
-                    AccessKey: this.bunnyApiKey,
-                    'Content-Type': file.type,
-                },
-                body: file,
-            })
-                .then((response) => {
-                    if (!response.ok) {
-                        throw new Error('Failed to upload thumbnail');
-                    }
-
-                    this.thumbnailCacheBuster = Date.now();
-                    this.loadVideo();
-                    this.bustThumbnailCache();
-
-                    Statamic.$toast.success(__('Thumbnail has been updated!'));
-                })
-                .catch((error) => {
-                    console.error(error);
-                    Statamic.$toast.error(__('An error occured while trying to update the thumbnail.'));
-                })
-                .finally(() => {
-                    this.isUploadingThumbnail = false;
-                    this.$refs.thumbnailInput.value = '';
-                });
-        },
-        bustThumbnailCache() {
-            fetch(`/cp/bunny/thumbnail/${this.currentVideo.guid}/bust`, {
-                method: 'POST',
-                headers: {
-                    'X-CSRF-TOKEN': Statamic.$config.get('csrfToken'),
-                },
-            }).catch((error) => console.error('Cache bust failed:', error));
         },
     }
 }

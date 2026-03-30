@@ -27,6 +27,7 @@
                         v-for="video in result.items"
                         :key="video.guid"
                         :video="video"
+                        @select="openDetail"
                     />
                 </tbody>
             </table>
@@ -50,18 +51,26 @@
                 {{ __('Upload Media') }}
             </button>
         </div>
+
+        <VideoDetailStack
+            v-if="selectedVideo"
+            :video="selectedVideo"
+            v-model:open="detailOpen"
+            @updated="onDetailUpdated"
+        />
     </div>
 </template>
 
 <script>
 import SpinnerIcon from "../icons/Spinner.vue";
 import VideoCard from "./VideoCard.vue";
+import VideoDetailStack from "./VideoDetailStack.vue";
 import { Input } from '@statamic/cms/ui';
 import { emitter } from '@/utils/emitter.js';
 import debounce from "debounce";
 
 export default {
-    components: { SpinnerIcon, VideoCard, Input },
+    components: { SpinnerIcon, VideoCard, VideoDetailStack, Input },
     inject: ['bunnyApiKey', 'bunnyLibrary'],
     data() {
         return {
@@ -72,6 +81,8 @@ export default {
             page: 1,
             maxPage: 1,
             itemsPerPage: 10,
+            selectedVideo: null,
+            detailOpen: false,
         };
     },
     computed: {
@@ -134,6 +145,13 @@ export default {
                 this.page--;
                 this.getVideos();
             }
+        },
+        openDetail(video) {
+            this.selectedVideo = video;
+            this.detailOpen = true;
+        },
+        onDetailUpdated() {
+            this.getVideos();
         },
     },
 };

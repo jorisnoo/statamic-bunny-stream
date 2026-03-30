@@ -1,6 +1,6 @@
 {
   "resources/css/bunny-stream.css": {
-    "file": "assets/bunny-stream-BUjmHxTL.css",
+    "file": "assets/bunny-stream-Dz3ef0SC.css",
     "src": "resources/css/bunny-stream.css",
     "isEntry": true,
     "name": "bunny-stream",
@@ -9,7 +9,7 @@
     ]
   },
   "resources/js/bunny-stream.js": {
-    "file": "assets/bunny-stream-CKRF8fOC.js",
+    "file": "assets/bunny-stream-CsZuk0EF.js",
     "name": "bunny-stream",
     "src": "resources/js/bunny-stream.js",
     "isEntry": true
