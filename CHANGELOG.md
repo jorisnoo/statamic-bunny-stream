@@ -2,6 +2,16 @@
 
 ## [2.0.0](https://github.com/jorisnoo/statamic-bunny-stream/releases/tag/2.0.0) (2026-02-13)
 
+## [2.2.0](https://github.com/jorisnoo/statamic-bunny-stream/releases/tag/v2.2.0) (2026-03-30)
+
+### Features
+
+- add thumbnail cache bust functionality ([18eb944](https://github.com/jorisnoo/statamic-bunny-stream/commit/18eb944fa367493bcfc2c5c74bfb73d399e8b41b))
+- add BunnyVideo class with token authentication support ([5981a0a](https://github.com/jorisnoo/statamic-bunny-stream/commit/5981a0a276c54ef78fd1f35c1ff3527f7fb82d77))
+
+### Bug Fixes
+
+- **thumbnail:** add Referer header to thumbnail requests ([67486f3](https://github.com/jorisnoo/statamic-bunny-stream/commit/67486f346ebcc601a14d319ea6aeec807bd9168b))
 ## [2.1.3](https://github.com/jorisnoo/statamic-bunny-stream/releases/tag/v2.1.3) (2026-03-27)
 
 ### Code Refactoring
