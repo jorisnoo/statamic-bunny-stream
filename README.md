@@ -71,6 +71,79 @@ This addon provides a Bunny fieldtype that you can add to any blueprint. It also
 
 Use the video browser in the Control Panel (under the Bunny Stream navigation item) to upload, browse, and manage your videos.
 
+### Frontend Templates
+
+The Bunny fieldtype augments to a `BunnyVideo` object. When used directly, it outputs the HLS playlist URL (backward compatible). You can also access the embed player, embed URL, thumbnail, and GUID.
+
+#### Antlers
+
+```antlers
+{{# HLS playlist URL (backward compatible) #}}
+{{ bunny_video }}
+
+{{# Bunny's iframe embed player (responsive 16:9) #}}
+{{ bunny_video:embed }}
+
+{{# Just the embed URL (for custom iframe markup) #}}
+{{ bunny_video:embed_url }}
+
+{{# Thumbnail image URL #}}
+{{ bunny_video:thumbnail }}
+
+{{# Raw video GUID #}}
+{{ bunny_video:guid }}
+```
+
+#### Blade
+
+```blade
+{{-- HLS playlist URL --}}
+{{ $bunny_video }}
+
+{{-- Embed player with default options --}}
+{!! $bunny_video->embed() !!}
+
+{{-- Embed with custom options --}}
+{!! $bunny_video->embed(['autoplay' => 'true', 'muted' => 'true']) !!}
+
+{{-- Just the embed URL --}}
+{{ $bunny_video->embedUrl(['loop' => 'true']) }}
+
+{{-- Thumbnail --}}
+{{ $bunny_video->thumbnail() }}
+```
+
+#### Available Embed Parameters
+
+Pass these as an array to `embed()` or `embedUrl()` in Blade:
+
+| Parameter | Default | Description |
+|---|---|---|
+| `autoplay` | `false` | Auto-start playback |
+| `preload` | `true` | Pre-download video data |
+| `responsive` | `true` | Enable responsive sizing |
+| `muted` | - | Start muted |
+| `loop` | - | Loop playback |
+| `captions` | - | Load specific caption track |
+| `t` | - | Start timestamp (e.g. `45s`, `1h20m45s`) |
+| `showSpeed` | - | Show playback speed controls |
+| `showHeatmap` | - | Show viewer engagement heatmap |
+| `playsinline` | - | Inline playback on mobile |
+| `chromecast` | - | Enable Chromecast |
+| `disableAirplay` | - | Disable AirPlay |
+| `rememberPosition` | - | Resume from last position |
+
+### Token Authentication
+
+For private or protected videos, configure token authentication by adding these to your `.env`:
+
+```bash
+BUNNY_STREAM_TOKEN_KEY=your-token-key        # From Bunny Dashboard > Library > Security
+BUNNY_STREAM_TOKEN_EXPIRY=24                  # Token lifetime in hours (default: 24)
+```
+
+When configured, embed URLs will automatically include signed `token` and `expires` parameters.
+
 ## Disclaimer
 
 This addon is not affiliated with, endorsed by, or sponsored by Bunny.net. It is an independent project designed to

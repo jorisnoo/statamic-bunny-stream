@@ -11,4 +11,12 @@ return [
     // The API key for authenticating requests to the Bunny Stream API.
     // This should be kept secure and not exposed in frontend code.
     'api_key' => env('BUNNY_STREAM_API_KEY'),
+
+    // Token authentication key for signed embed URLs (private/protected videos).
+    // Found in Bunny Dashboard under your library's Security settings.
+    // Leave null to disable token authentication.
+    'token_key' => env('BUNNY_STREAM_TOKEN_KEY'),
+
+    // Token expiry time in hours. Defaults to 24 hours.
+    'token_expiry' => env('BUNNY_STREAM_TOKEN_EXPIRY', 24),
 ];

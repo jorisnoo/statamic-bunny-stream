@@ -2,6 +2,7 @@
 
 namespace Noo\BunnyStream\Fieldtypes;
 
+use Noo\BunnyStream\Data\BunnyVideo;
 use Noo\BunnyStream\Repositories\VideoRepository;
 use Statamic\Fields\Fieldtype;
 
@@ -33,14 +34,18 @@ class Bunny extends Fieldtype
         return $data;
     }
 
-    public function augment($value): ?string
+    public function augment($value): ?BunnyVideo
     {
         if (! $value) {
             return null;
         }
 
-        $hostname = config('statamic.bunny-stream.hostname');
-
-        return "https://{$hostname}/{$value}/playlist.m3u8";
+        return new BunnyVideo(
+            guid: $value,
+            hostname: config('statamic.bunny-stream.hostname'),
+            libraryId: config('statamic.bunny-stream.library_id'),
+            tokenKey: config('statamic.bunny-stream.token_key'),
+            tokenExpiry: config('statamic.bunny-stream.token_expiry', 24),
+        );
     }
 }
