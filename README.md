@@ -71,6 +71,8 @@ This addon provides a Bunny fieldtype that you can add to any blueprint. It also
 
 Use the video browser in the Control Panel (under the Bunny Stream navigation item) to upload, browse, and manage your videos.
 
+Access to the video browser requires the `Manage Bunny videos` permission (super admins always have it). Assign it to a role under Users > Roles in the Bunny Stream permission group.
+
 ### Frontend Templates
 
 The Bunny fieldtype augments to a `BunnyVideo` object. When used directly, it outputs the HLS playlist URL (backward compatible). You can also access the embed player, embed URL, thumbnail, and GUID.

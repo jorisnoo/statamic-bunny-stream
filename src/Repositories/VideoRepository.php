@@ -3,67 +3,56 @@
 namespace Noo\BunnyStream\Repositories;
 
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Noo\BunnyStream\BunnyClient;
 
 class VideoRepository
 {
+    public function __construct(private BunnyClient $client)
+    {
+    }
+
     public function fetchAll(): array
     {
         return Cache::remember('bunny:all', now()->addHour(), function () {
             try {
-                $result = Http::withHeaders([
-                    'Accept'    => 'application/json',
-                    'AccessKey' => config('statamic.bunny-stream.api_key'),
-                ])->get(vsprintf('https://video.bunnycdn.com/library/%s/videos', [
-                    config('statamic.bunny-stream.library_id'),
-                ]), [
-                    'page'         => 1,
-                    'itemsPerPage' => 100,
-                    'orderBy'      => 'date',
-                ]);
-
-                if (! $result->successful()) {
-                    return [];
-                }
+                return $this->client->videos()['items'] ?? [];
             } catch (\Throwable $e) {
                 Log::error($e->getMessage());
+
                 return [];
             }
-
-            return $result->json('items', []);
         });
     }
 
-    public function fetch(string $video): ?array
+    public function fetch(string $guid): ?array
     {
-        $cacheKey = 'bunny:' . $video;
+        $cacheKey = 'bunny:'.$guid;
 
         if (Cache::has($cacheKey)) {
             return Cache::get($cacheKey);
         }
 
         try {
-            $result = Http::withHeaders([
-                'Accept' => 'application/json',
-                'AccessKey' => config('statamic.bunny-stream.api_key'),
-            ])->get(vsprintf('https://video.bunnycdn.com/library/%s/videos/%s', [
-                config('statamic.bunny-stream.library_id'),
-                $video,
-            ]));
-
-            if (! $result->successful()) {
-                throw new \Exception('Unable to find video.');
-            }
+            $video = $this->client->video($guid);
         } catch (\Throwable $e) {
             Log::error($e->getMessage());
 
             return null;
         }
 
-        $data = $result->json();
-        Cache::forever($cacheKey, $data);
+        Cache::forever($cacheKey, $video);
 
-        return $data;
+        return $video;
+    }
+
+    public function forget(?string $guid = null): void
+    {
+        if ($guid) {
+            Cache::forget('bunny:'.$guid);
+            Cache::forget('bunny:thumb:'.$guid);
+        }
+
+        Cache::forget('bunny:all');
     }
 }

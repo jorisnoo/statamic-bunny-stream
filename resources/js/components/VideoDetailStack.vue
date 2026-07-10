@@ -92,10 +92,11 @@
 import ChapterEditor from './ChapterEditor.vue';
 import { formatTime } from '@/utils/time.js';
 import { emitter } from '@/utils/emitter.js';
+import * as api from '@/utils/api.js';
 
 export default {
     components: { ChapterEditor },
-    inject: ['bunnyApiKey', 'bunnyHostname', 'bunnyLibrary'],
+    inject: ['bunnyEndpoint', 'bunnyHostname'],
     props: {
         video: {
             type: Object,
@@ -146,13 +147,7 @@ export default {
         fetchVideo() {
             this.loading = true;
 
-            fetch(`https://video.bunnycdn.com/library/${this.bunnyLibrary}/videos/${this.video.guid}`, {
-                headers: {
-                    Accept: 'application/json',
-                    AccessKey: this.bunnyApiKey,
-                },
-            })
-                .then((response) => response.json())
+            api.get(`${this.bunnyEndpoint}/${this.video.guid}`)
                 .then((data) => {
                     this.fullVideo = data;
                     this.editableTitle = data.title || '';
@@ -170,23 +165,11 @@ export default {
         save() {
             this.isSaving = true;
 
-            fetch(`https://video.bunnycdn.com/library/${this.bunnyLibrary}/videos/${this.video.guid}`, {
-                method: 'POST',
-                headers: {
-                    Accept: 'application/json',
-                    'Content-Type': 'application/*+json',
-                    AccessKey: this.bunnyApiKey,
-                },
-                body: JSON.stringify({
-                    title: this.editableTitle,
-                    chapters: this.editableChapters,
-                }),
+            api.patch(`${this.bunnyEndpoint}/${this.video.guid}`, {
+                title: this.editableTitle,
+                chapters: this.editableChapters,
             })
-                .then((response) => {
-                    if (!response.ok) {
-                        throw new Error('Failed to save video');
-                    }
-
+                .then(() => {
                     Statamic.$toast.success(__('Video updated.'));
                     this.$emit('updated');
                 })
@@ -209,21 +192,9 @@ export default {
 
             this.isUploadingThumbnail = true;
 
-            fetch(`https://video.bunnycdn.com/library/${this.bunnyLibrary}/videos/${this.video.guid}/thumbnail`, {
-                method: 'POST',
-                headers: {
-                    AccessKey: this.bunnyApiKey,
-                    'Content-Type': file.type,
-                },
-                body: file,
-            })
-                .then((response) => {
-                    if (!response.ok) {
-                        throw new Error('Failed to upload thumbnail');
-                    }
-
+            api.upload(`${this.bunnyEndpoint}/${this.video.guid}/thumbnail`, { thumbnail: file })
+                .then(() => {
                     this.thumbnailCacheBuster = Date.now();
-                    this.bustThumbnailCache();
                     emitter.emit(`thumbnail-updated:${this.video.guid}`);
                     this.$emit('updated');
 
@@ -237,15 +208,6 @@ export default {
                     this.isUploadingThumbnail = false;
                     this.$refs.thumbnailInput.value = '';
                 });
-        },
-
-        bustThumbnailCache() {
-            fetch(`/cp/bunny/thumbnail/${this.video.guid}/bust`, {
-                method: 'POST',
-                headers: {
-                    'X-CSRF-TOKEN': Statamic.$config.get('csrfToken'),
-                },
-            }).catch((error) => console.error('Cache bust failed:', error));
         },
 
         formatDuration(seconds) {

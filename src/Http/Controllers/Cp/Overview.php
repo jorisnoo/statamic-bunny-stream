@@ -4,11 +4,12 @@ namespace Noo\BunnyStream\Http\Controllers\Cp;
 
 use Inertia\Inertia;
 use Inertia\Response;
+use Noo\BunnyStream\BunnyClient;
 use Statamic\Http\Controllers\CP\CpController;
 
 class Overview extends CpController
 {
-    public function __invoke(): Response
+    public function __invoke(BunnyClient $bunny): Response
     {
         return Inertia::render('BunnyOverview', [
             'title' => __('Media Browser'),
@@ -17,9 +18,9 @@ class Overview extends CpController
                 'url' => 'https://github.com/jorisnoo/statamic-bunny-stream',
             ],
             'bunny' => [
-                'apiKey' => config('statamic.bunny-stream.api_key'),
+                'configured' => $bunny->isConfigured(),
                 'hostname' => config('statamic.bunny-stream.hostname'),
-                'library' => config('statamic.bunny-stream.library_id'),
+                'endpoint' => cp_route('bunny.cp.videos.index'),
             ],
         ]);
     }

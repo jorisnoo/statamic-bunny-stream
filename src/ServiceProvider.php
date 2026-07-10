@@ -4,6 +4,7 @@ namespace Noo\BunnyStream;
 
 use Illuminate\Support\Facades\File;
 use Statamic\Facades\CP\Nav;
+use Statamic\Facades\Permission;
 use Statamic\Providers\AddonServiceProvider;
 use Statamic\Statamic;
 
@@ -48,10 +49,18 @@ class ServiceProvider extends AddonServiceProvider
 
     public function bootAddon(): void
     {
+        Permission::extend(function () {
+            Permission::group('bunny-stream', 'Bunny Stream', function () {
+                Permission::register('manage bunny videos')
+                    ->label(__('Manage Bunny videos'));
+            });
+        });
+
         Nav::extend(function ($nav) {
             $nav->content(__('Media Browser'))
                 ->section('Content')
                 ->route('bunny.cp.videoBrowser')
+                ->can('manage bunny videos')
                 ->icon('movie-video-clip');
         });
 

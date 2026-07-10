@@ -50,5 +50,7 @@
     "Resolution": "Auflösung",
     "Views": "Aufrufe",
     "Size": "Größe",
-    "Saving...": "Speichern..."
+    "Saving...": "Speichern...",
+    "Wrong timestamp format for thumbnail creation.": "Falsches Zeitformat für die Thumbnailerstellung.",
+    "Manage Bunny videos": "Bunny-Videos verwalten"
 }

@@ -3,9 +3,9 @@
 namespace Noo\BunnyStream\Console\Commands;
 
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Noo\BunnyStream\BunnyClient;
 
 class BackupCommand extends Command
 {
@@ -15,7 +15,7 @@ class BackupCommand extends Command
 
     protected $description = 'Download all Bunny Stream videos to the configured backup disk';
 
-    public function handle(): int
+    public function handle(BunnyClient $bunny): int
     {
         $diskName = config('statamic.bunny-stream.backup_disk');
 
@@ -32,7 +32,7 @@ class BackupCommand extends Command
         }
 
         $storage = Storage::disk($diskName);
-        $videos = $this->fetchAllVideos();
+        $videos = $this->fetchAllVideos($bunny);
 
         if ($videos === null) {
             return self::FAILURE;
@@ -62,7 +62,7 @@ class BackupCommand extends Command
             }
 
             try {
-                $this->downloadVideo($storage, $video);
+                $this->downloadVideo($bunny, $storage, $video);
                 $this->saveMetadata($storage, $video);
                 $downloaded++;
             } catch (\Throwable $e) {
@@ -100,10 +100,8 @@ class BackupCommand extends Command
         return $failed > 0 ? self::FAILURE : self::SUCCESS;
     }
 
-    private function fetchAllVideos(): ?array
+    private function fetchAllVideos(BunnyClient $bunny): ?array
     {
-        $libraryId = config('statamic.bunny-stream.library_id');
-        $apiKey = config('statamic.bunny-stream.api_key');
         $videos = [];
         $page = 1;
 
@@ -111,27 +109,13 @@ class BackupCommand extends Command
 
         do {
             try {
-                $response = Http::withHeaders([
-                    'Accept' => 'application/json',
-                    'AccessKey' => $apiKey,
-                ])->get("https://video.bunnycdn.com/library/{$libraryId}/videos", [
-                    'page' => $page,
-                    'itemsPerPage' => 100,
-                    'orderBy' => 'date',
-                ]);
-
-                if (! $response->successful()) {
-                    $this->error("Failed to fetch video list (page {$page}): HTTP {$response->status()}");
-
-                    return null;
-                }
+                $data = $bunny->videos(page: $page);
             } catch (\Throwable $e) {
                 $this->error("Failed to fetch video list (page {$page}): {$e->getMessage()}");
 
                 return null;
             }
 
-            $data = $response->json();
             $videos = array_merge($videos, $data['items'] ?? []);
             $totalItems = $data['totalItems'] ?? 0;
             $page++;
@@ -140,25 +124,13 @@ class BackupCommand extends Command
         return $videos;
     }
 
-    private function downloadVideo($storage, array $video): void
+    private function downloadVideo(BunnyClient $bunny, $storage, array $video): void
     {
-        $libraryId = config('statamic.bunny-stream.library_id');
-        $apiKey = config('statamic.bunny-stream.api_key');
         $guid = $video['guid'];
-        $url = "https://video.bunnycdn.com/library/{$libraryId}/videos/{$guid}/download";
-
         $tempPath = tempnam(sys_get_temp_dir(), 'bunny_backup_');
 
         try {
-            $response = Http::timeout(0)
-                ->connectTimeout(30)
-                ->withHeaders(['AccessKey' => $apiKey])
-                ->withOptions(['sink' => $tempPath])
-                ->get($url);
-
-            if (! $response->successful()) {
-                throw new \RuntimeException("Download failed with HTTP {$response->status()}");
-            }
+            $bunny->download($guid, $tempPath);
 
             $stream = fopen($tempPath, 'r');
             $storage->writeStream("bunny-stream/{$guid}.mp4", $stream);

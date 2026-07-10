@@ -77,9 +77,10 @@
 
 <script>
 import { formatTime, parseTime } from '@/utils/time.js';
+import * as api from '@/utils/api.js';
 
 export default {
-    inject: ['bunnyApiKey', 'bunnyLibrary'],
+    inject: ['bunnyEndpoint'],
     props: {
         chapters: {
             type: Array,
@@ -166,22 +167,8 @@ export default {
             this.isGenerating = true;
             this.pollCount = 0;
 
-            fetch(`https://video.bunnycdn.com/library/${this.bunnyLibrary}/videos/${this.videoGuid}/transcribe`, {
-                method: 'POST',
-                headers: {
-                    Accept: 'application/json',
-                    'Content-Type': 'application/json',
-                    AccessKey: this.bunnyApiKey,
-                },
-                body: JSON.stringify({
-                    generateChapters: true,
-                }),
-            })
-                .then((response) => {
-                    if (!response.ok) {
-                        throw new Error('Failed to start chapter generation');
-                    }
-
+            api.post(`${this.bunnyEndpoint}/${this.videoGuid}/transcribe`)
+                .then(() => {
                     this.startPolling();
                 })
                 .catch((error) => {
@@ -202,13 +189,7 @@ export default {
                     return;
                 }
 
-                fetch(`https://video.bunnycdn.com/library/${this.bunnyLibrary}/videos/${this.videoGuid}`, {
-                    headers: {
-                        Accept: 'application/json',
-                        AccessKey: this.bunnyApiKey,
-                    },
-                })
-                    .then((response) => response.json())
+                api.get(`${this.bunnyEndpoint}/${this.videoGuid}`)
                     .then((data) => {
                         if (data.chapters && data.chapters.length > 0) {
                             this.stopPolling();

@@ -54,9 +54,10 @@
 
 <script>
 import { emitter } from '@/utils/emitter.js';
+import * as api from '@/utils/api.js';
 
 export default {
-    inject: ['bunnyApiKey', 'bunnyHostname', 'bunnyLibrary'],
+    inject: ['bunnyEndpoint', 'bunnyHostname'],
     props: {
         video: Object,
     },
@@ -108,13 +109,7 @@ export default {
         loadVideo() {
             this.isLoading = true;
 
-            fetch(`https://video.bunnycdn.com/library/${this.bunnyLibrary}/videos/${this.currentVideo.guid}`, {
-                headers: {
-                    Accept: 'application/json',
-                    AccessKey: this.bunnyApiKey,
-                },
-            })
-                .then((response) => response.json())
+            api.get(`${this.bunnyEndpoint}/${this.currentVideo.guid}`)
                 .then((data) => {
                     this.currentVideo = data;
                     if (this.currentVideo.status >= 4) {
@@ -132,13 +127,7 @@ export default {
         deleteVideo() {
             this.isLoading = true;
 
-            fetch(`https://video.bunnycdn.com/library/${this.bunnyLibrary}/videos/${this.currentVideo.guid}`, {
-                method: 'DELETE',
-                headers: {
-                    Accept: 'application/json',
-                    AccessKey: this.bunnyApiKey,
-                },
-            })
+            api.destroy(`${this.bunnyEndpoint}/${this.currentVideo.guid}`)
                 .then(() => {
                     this.cancelDeletion();
                     clearInterval(this.polling);

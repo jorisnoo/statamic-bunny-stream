@@ -67,11 +67,12 @@ import VideoCard from "./VideoCard.vue";
 import VideoDetailStack from "./VideoDetailStack.vue";
 import { Input } from '@statamic/cms/ui';
 import { emitter } from '@/utils/emitter.js';
+import * as api from '@/utils/api.js';
 import debounce from "debounce";
 
 export default {
     components: { SpinnerIcon, VideoCard, VideoDetailStack, Input },
-    inject: ['bunnyApiKey', 'bunnyLibrary'],
+    inject: ['bunnyEndpoint'],
     data() {
         return {
             search: '',
@@ -106,19 +107,16 @@ export default {
     },
     methods: {
         getVideos() {
-            let url = `https://video.bunnycdn.com/library/${this.bunnyLibrary}/videos?page=${this.page}&itemsPerPage=${this.itemsPerPage}&orderBy=date`;
+            const params = new URLSearchParams({
+                page: this.page,
+                perPage: this.itemsPerPage,
+            });
 
             if (this.search !== '') {
-                url += `&search=${this.search}`;
+                params.set('search', this.search);
             }
 
-            fetch(url, {
-                headers: {
-                    Accept: 'application/json',
-                    AccessKey: this.bunnyApiKey,
-                },
-            })
-                .then((response) => response.json())
+            api.get(`${this.bunnyEndpoint}?${params}`)
                 .then((data) => {
                     this.maxPage = Math.ceil(data.totalItems / this.itemsPerPage);
                     this.result = data;

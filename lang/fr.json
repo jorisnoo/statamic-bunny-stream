@@ -50,5 +50,7 @@
     "Resolution": "Résolution",
     "Views": "Vues",
     "Size": "Taille",
-    "Saving...": "Enregistrement..."
+    "Saving...": "Enregistrement...",
+    "Wrong timestamp format for thumbnail creation.": "Format d'horodatage incorrect pour la création de la miniature.",
+    "Manage Bunny videos": "Gérer les vidéos Bunny"
 }

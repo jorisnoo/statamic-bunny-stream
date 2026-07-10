@@ -12,15 +12,14 @@ const props = defineProps({
     bunny: Object,
 });
 
-provide('bunnyApiKey', props.bunny.apiKey);
+provide('bunnyEndpoint', props.bunny.endpoint);
 provide('bunnyHostname', props.bunny.hostname);
-provide('bunnyLibrary', props.bunny.library);
 </script>
 
 <template>
     <Head :title="title" />
 
-    <template v-if="bunny.apiKey && bunny.hostname && bunny.library">
+    <template v-if="bunny.configured">
         <Header :title="title">
             <Uploader />
         </Header>

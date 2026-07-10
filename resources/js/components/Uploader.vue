@@ -15,31 +15,14 @@ export default {
     components: {
         Button
     },
-    inject: ['bunnyApiKey', 'bunnyHostname', 'bunnyLibrary'],
+    inject: ['bunnyEndpoint'],
     data() {
         return {
-            expirationTime: 0,
             uploader: null
         };
     },
     methods: {
-        getExpirationTime() {
-            const d = new Date();
-            d.setDate(d.getDate() + 1);
-            return d.getTime();
-        },
-        async getAuthorizationSignature(videoId) {
-            const signature = this.bunnyLibrary + this.bunnyApiKey + this.expirationTime + videoId;
-            const encoded = new TextEncoder().encode(signature);
-            const hash = await crypto.subtle.digest('SHA-256', encoded);
-
-            return Array.from(new Uint8Array(hash))
-                .map((b) => b.toString(16).padStart(2, '0'))
-                .join('');
-        },
         initializeUppy() {
-            this.expirationTime = this.getExpirationTime();
-
             this.uploader = markRaw(new Uppy()
                 .use(Dashboard, {
                     inline: false,
@@ -70,23 +53,21 @@ export default {
                     ],
                 })
                 .use(UppyBunnyCreator, {
-                    access: this.bunnyApiKey,
-                    library: this.bunnyLibrary
+                    endpoint: this.bunnyEndpoint
                 })
                 .use(Tus, {
                     endpoint: 'https://video.bunnycdn.com/tusupload',
                     retryDelays: [0, 30, 50, 3000, 5000, 10000, 60000],
-                    onBeforeRequest: async (req, file) => {
-                        const fileMeta = this.uploader.getFile(file.id).meta;
-                        if (fileMeta.bunnyId) {
-                            const signature = await this.getAuthorizationSignature(fileMeta.bunnyId);
-                            req.setHeader('AuthorizationSignature', signature);
-                            req.setHeader('AuthorizationExpire', this.expirationTime);
-                            req.setHeader('VideoId', fileMeta.bunnyId);
-                            req.setHeader('LibraryId', this.bunnyLibrary);
-                        } else {
-                            throw new Error('Missing Bunny video ID');
+                    onBeforeRequest: (req, file) => {
+                        const upload = this.uploader.getFile(file.id).meta.bunnyUpload;
+                        if (!upload) {
+                            throw new Error('Missing Bunny upload authorization');
                         }
+
+                        req.setHeader('AuthorizationSignature', upload.signature);
+                        req.setHeader('AuthorizationExpire', upload.expires);
+                        req.setHeader('VideoId', upload.videoId);
+                        req.setHeader('LibraryId', upload.libraryId);
                     }
                 }));
 

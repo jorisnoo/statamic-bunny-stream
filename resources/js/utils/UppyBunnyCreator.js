@@ -1,4 +1,6 @@
 import { BasePlugin } from '@uppy/core';
+import * as api from './api.js';
+
 class UppyBunnyCreator extends BasePlugin {
     constructor(uppy, opts) {
         super(uppy, opts);
@@ -7,27 +9,11 @@ class UppyBunnyCreator extends BasePlugin {
         this.type = 'modifier';
     }
 
-    async create(file) {
-        const response = await fetch(`https://video.bunnycdn.com/library/${this.opts.library}/videos`, {
-            method: 'POST',
-            headers: {
-                Accept: 'application/json',
-                'Content-Type': 'application/*+json',
-                AccessKey: this.opts.access,
-            },
-            body: JSON.stringify({
-                title: file.meta.name,
-                thumbnailTime: this.getMsFromTime(file.meta.thumbTime),
-            }),
+    create(file) {
+        return api.post(this.opts.endpoint, {
+            title: file.meta.name,
+            thumbnailTime: this.getMsFromTime(file.meta.thumbTime),
         });
-
-        if (!response.ok) {
-            throw new Error(`Failed to create video: ${response.status}`);
-        }
-
-        const data = await response.json();
-
-        return data.guid;
     }
 
     prepareUpload = async (fileIDs) => {
@@ -35,8 +21,8 @@ class UppyBunnyCreator extends BasePlugin {
             const file = this.uppy.getFile(fileID);
 
             return this.create(file)
-                .then((response) => {
-                    this.uppy.setFileMeta(fileID, { bunnyId: response });
+                .then(({ guid, upload }) => {
+                    this.uppy.setFileMeta(fileID, { bunnyId: guid, bunnyUpload: upload });
                 })
                 .catch((err) => {
                     this.uppy.log(err, 'warning');
@@ -71,7 +57,7 @@ class UppyBunnyCreator extends BasePlugin {
             return 0;
         } else {
             if(!this.validateTime(hms)) {
-                this.uppy.info('Falsches Zeitformat für die Thumbnailerstellung.', 'error', 3000);
+                this.uppy.info(__('Wrong timestamp format for thumbnail creation.'), 'error', 3000);
                 throw new Error('Wrong timestamp format for thumbnail creation.');
             }
         }

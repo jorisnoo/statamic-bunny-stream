@@ -50,5 +50,7 @@
     "Resolution": "Resolution",
     "Views": "Views",
     "Size": "Size",
-    "Saving...": "Saving..."
+    "Saving...": "Saving...",
+    "Wrong timestamp format for thumbnail creation.": "Wrong timestamp format for thumbnail creation.",
+    "Manage Bunny videos": "Manage Bunny videos"
 }
