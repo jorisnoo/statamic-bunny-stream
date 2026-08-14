@@ -42,13 +42,19 @@ class VideosController extends CpController
 
     public function update(Request $request, BunnyClient $bunny, VideoRepository $videos, string $guid)
     {
-        $data = $request->validate([
+        $rules = [
             'title' => ['sometimes', 'string'],
-            'chapters' => ['sometimes', 'array'],
-            'chapters.*.title' => ['nullable', 'string'],
-            'chapters.*.start' => ['required', 'integer', 'min:0'],
-            'chapters.*.end' => ['required', 'integer', 'min:0'],
-        ]);
+            'chapters' => ['prohibited'],
+        ];
+
+        if (config('statamic.bunny-stream.chapters', false)) {
+            $rules['chapters'] = ['sometimes', 'array'];
+            $rules['chapters.*.title'] = ['nullable', 'string'];
+            $rules['chapters.*.start'] = ['required', 'integer', 'min:0'];
+            $rules['chapters.*.end'] = ['required', 'integer', 'min:0'];
+        }
+
+        $data = $request->validate($rules);
 
         $bunny->update($guid, $data);
 
@@ -83,6 +89,8 @@ class VideosController extends CpController
 
     public function transcribe(BunnyClient $bunny, string $guid)
     {
+        abort_unless(config('statamic.bunny-stream.chapters', false), 404);
+
         $bunny->transcribe($guid);
 
         return response()->noContent();

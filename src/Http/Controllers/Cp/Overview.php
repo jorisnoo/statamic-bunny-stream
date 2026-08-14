@@ -21,6 +21,7 @@ class Overview extends CpController
                 'configured' => $bunny->isConfigured(),
                 'hostname' => config('statamic.bunny-stream.hostname'),
                 'endpoint' => cp_route('bunny.cp.videos.index'),
+                'chapters' => config('statamic.bunny-stream.chapters', false),
             ],
         ]);
     }

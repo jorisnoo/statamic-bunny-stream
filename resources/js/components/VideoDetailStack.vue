@@ -67,6 +67,7 @@
 
                     <!-- Chapters -->
                     <ChapterEditor
+                        v-if="bunnyChaptersEnabled"
                         :chapters="editableChapters"
                         :video-guid="video.guid"
                         @update:chapters="editableChapters = $event"
@@ -96,7 +97,7 @@ import * as api from '@/utils/api.js';
 
 export default {
     components: { ChapterEditor },
-    inject: ['bunnyEndpoint', 'bunnyHostname'],
+    inject: ['bunnyEndpoint', 'bunnyHostname', 'bunnyChaptersEnabled'],
     props: {
         video: {
             type: Object,
@@ -167,7 +168,7 @@ export default {
 
             api.patch(`${this.bunnyEndpoint}/${this.video.guid}`, {
                 title: this.editableTitle,
-                chapters: this.editableChapters,
+                ...(this.bunnyChaptersEnabled ? { chapters: this.editableChapters } : {}),
             })
                 .then(() => {
                     Statamic.$toast.success(__('Video updated.'));

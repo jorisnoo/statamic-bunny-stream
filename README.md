@@ -43,6 +43,12 @@ BUNNY_STREAM_CDN_HOSTNAME=yourcdnhostname # Your Library CDN Hostname
 
 You can find these values in your Bunny Stream Dashboard at [https://dash.bunny.net/stream/](https://dash.bunny.net/stream/) `Delivery > Stream > API`
 
+Chapter editing and automatic chapter generation are disabled by default. To enable them, add:
+
+```bash
+BUNNY_STREAM_CHAPTERS=true
+```
+
 ### Custom CDN Hostname
 
 To add a custom hostname you can do the following:

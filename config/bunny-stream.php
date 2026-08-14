@@ -20,6 +20,9 @@ return [
     // Token expiry time in hours. Defaults to 24 hours.
     'token_expiry' => env('BUNNY_STREAM_TOKEN_EXPIRY', 24),
 
+    // Enable chapter editing and automatic chapter generation.
+    'chapters' => env('BUNNY_STREAM_CHAPTERS', false),
+
     // The Laravel filesystem disk to use for video backups.
     // Set to a disk name (e.g., 'local', 's3') to enable the bunny-stream:backup command.
     // Leave null to disable the backup feature.

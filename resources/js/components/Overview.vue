@@ -14,6 +14,7 @@ const props = defineProps({
 
 provide('bunnyEndpoint', props.bunny.endpoint);
 provide('bunnyHostname', props.bunny.hostname);
+provide('bunnyChaptersEnabled', props.bunny.chapters);
 </script>
 
 <template>
