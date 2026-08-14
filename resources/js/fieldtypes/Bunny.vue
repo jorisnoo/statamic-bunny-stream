@@ -31,7 +31,7 @@ import { Fieldtype } from '@statamic/cms';
 import { Combobox } from '@statamic/cms/ui';
 const emit = defineEmits(Fieldtype.emits);
 const props = defineProps(Fieldtype.props);
-const { expose, update } = Fieldtype.use(emit, props);
+const { defineReplicatorPreview, expose, update } = Fieldtype.use(emit, props);
 defineExpose(expose);
 
 const input = ref(null);
@@ -43,8 +43,16 @@ if (props.value && props.meta.initialTitle) {
     const label = props.meta.initialDate
         ? `${props.meta.initialTitle} (${new Date(props.meta.initialDate).toLocaleString()})`
         : props.meta.initialTitle;
-    options.value = [{ value: props.value, label, image: props.meta.initialThumbnail }];
+    options.value = [{ value: props.value, label, title: props.meta.initialTitle, image: props.meta.initialThumbnail }];
 }
+
+defineReplicatorPreview(() => {
+    if (!props.value) return null;
+
+    return options.value.find((option) => option.value === props.value)?.title
+        ?? props.meta.initialTitle
+        ?? props.value;
+});
 
 function thumbnailUrl(guid) {
     return props.meta.thumbnailUrl.replace('__GUID__', guid);
@@ -67,6 +75,7 @@ function arrangeVideos() {
     options.value = videos.value.items.map((video) => ({
         value: video.guid,
         label: `${video.title} (${new Date(video.dateUploaded).toLocaleString()})`,
+        title: video.title,
         image: thumbnailUrl(video.guid),
     }));
 }
