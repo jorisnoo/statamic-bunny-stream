@@ -2,6 +2,23 @@
 
 ## [2.0.0](https://github.com/jorisnoo/statamic-bunny-stream/releases/tag/2.0.0) (2026-02-13)
 
+## [2.3.0](https://github.com/jorisnoo/statamic-bunny-stream/releases/tag/v2.3.0) (2026-08-14)
+
+### Features
+
+- add bunny-stream:backup command ([5a986a4](https://github.com/jorisnoo/statamic-bunny-stream/commit/5a986a47cabfce76dba6c4205c7dc2524d531763))
+- add chapter editor and video detail stack components ([4defe0e](https://github.com/jorisnoo/statamic-bunny-stream/commit/4defe0e273dabab344100ce21ab4408f00a93628))
+
+### Bug Fixes
+
+- show video title in collapsed repeater previews ([65136aa](https://github.com/jorisnoo/statamic-bunny-stream/commit/65136aa0782e1721b1b611e2f6e43eaab7210537))
+- stop exposing Bunny API key to the browser and gate CP routes ([0de1dd9](https://github.com/jorisnoo/statamic-bunny-stream/commit/0de1dd9b9130eb6c117387b746440f08b1ca0f7b))
+
+### Chores
+
+- **deps:** minor update ([627831f](https://github.com/jorisnoo/statamic-bunny-stream/commit/627831f0ed51d6aad6fa9775749fba1cbaebdd3f))
+- tidy metadata, add justfile, stop tracking package-lock.json ([83e0688](https://github.com/jorisnoo/statamic-bunny-stream/commit/83e0688d2038e66e255016c4d218313462940b5d))
+- simplify dependabot auto-merge and add package-lock.json to gitignore ([ef11d45](https://github.com/jorisnoo/statamic-bunny-stream/commit/ef11d4532f9146b67847e698ca219f5b6022f272))
 ## [2.2.0](https://github.com/jorisnoo/statamic-bunny-stream/releases/tag/v2.2.0) (2026-03-30)
 
 ### Features
