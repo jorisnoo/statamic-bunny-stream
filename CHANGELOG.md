@@ -2,6 +2,15 @@
 
 ## [2.0.0](https://github.com/jorisnoo/statamic-bunny-stream/releases/tag/2.0.0) (2026-02-13)
 
+## [2.3.1](https://github.com/jorisnoo/statamic-bunny-stream/releases/tag/v2.3.1) (2026-08-24)
+
+### Features
+
+- make video chapters opt-in ([dbe5867](https://github.com/jorisnoo/statamic-bunny-stream/commit/dbe586767f335bc7f816629f29d81aa519baa9d7))
+
+### Code Refactoring
+
+- clarify video selection UI and add error state translations ([fe6ac8d](https://github.com/jorisnoo/statamic-bunny-stream/commit/fe6ac8d730451b635a7a36b4bdf294e668c6cef4))
 ## [2.3.0](https://github.com/jorisnoo/statamic-bunny-stream/releases/tag/v2.3.0) (2026-08-14)
 
 ### Features
