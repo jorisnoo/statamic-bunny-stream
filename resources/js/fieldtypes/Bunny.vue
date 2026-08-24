@@ -6,7 +6,7 @@
             :clearable="true"
             :disabled="false"
             :options="options"
-            :placeholder="__('Select Media...')"
+            :placeholder="__('Select video...')"
             :searchable="true"
             :multiple="false"
             :close-on-select="true"
@@ -26,7 +26,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { computed, ref, onMounted } from 'vue';
 import { Fieldtype } from '@statamic/cms';
 import { Combobox } from '@statamic/cms/ui';
 const emit = defineEmits(Fieldtype.emits);
@@ -34,24 +34,56 @@ const props = defineProps(Fieldtype.props);
 const { defineReplicatorPreview, expose, update } = Fieldtype.use(emit, props);
 defineExpose(expose);
 
-const input = ref(null);
-const loading = ref(true);
-const videos = ref([]);
-const options = ref([]);
+// Sentinel for "no video selected". The combobox needs a real option value to
+// select, but we always store null.
+const NONE = '__none__';
 
-if (props.value && props.meta.initialTitle) {
-    const label = props.meta.initialDate
-        ? `${props.meta.initialTitle} (${new Date(props.meta.initialDate).toLocaleString()})`
-        : props.meta.initialTitle;
-    options.value = [{ value: props.value, label, title: props.meta.initialTitle, image: props.meta.initialThumbnail }];
-}
+const input = ref(null);
+const videos = ref(null);
+
+// The video the field was loaded with. It may since have been deleted from the
+// library, in which case it won't show up in the fetched list.
+const initialValue = props.value;
+const initialOption = props.value && props.meta.initialTitle
+    ? {
+        value: props.value,
+        label: props.meta.initialDate
+            ? `${props.meta.initialTitle} (${new Date(props.meta.initialDate).toLocaleString()})`
+            : props.meta.initialTitle,
+        title: props.meta.initialTitle,
+        image: props.meta.initialThumbnail,
+    }
+    : null;
+
+const options = computed(() => {
+    const items = videos.value === null
+        ? (initialOption ? [initialOption] : [])
+        : videos.value.map((video) => ({
+            value: video.guid,
+            label: `${video.title} (${new Date(video.dateUploaded).toLocaleString()})`,
+            title: video.title,
+            image: thumbnailUrl(video.guid),
+        }));
+
+    // Keep a selected video that's no longer in the library around, otherwise
+    // there'd be nothing to show and nothing to replace it with.
+    if (props.value && ! items.some((item) => item.value === props.value)) {
+        const title = props.value === initialValue && initialOption ? initialOption.title : props.value;
+
+        items.push({
+            value: props.value,
+            label: `${title} (${__('video not found')})`,
+            title,
+        });
+    }
+
+    return [{ value: NONE, label: __('No video') }, ...items];
+});
 
 defineReplicatorPreview(() => {
-    if (!props.value) return null;
+    if (! props.value) return null;
 
-    return options.value.find((option) => option.value === props.value)?.title
-        ?? props.meta.initialTitle
-        ?? props.value;
+    return options.value.find((option) => option.value === props.value)?.title ?? props.value;
 });
 
 function thumbnailUrl(guid) {
@@ -62,26 +94,15 @@ function getVideos() {
     fetch(props.meta.listUrl)
         .then((response) => response.json())
         .then((items) => {
-            videos.value = { items };
-            loading.value = false;
-            arrangeVideos();
+            videos.value = Array.isArray(items) ? items : [];
         })
         .catch((error) => {
             console.error(error);
         });
 }
 
-function arrangeVideos() {
-    options.value = videos.value.items.map((video) => ({
-        value: video.guid,
-        label: `${video.title} (${new Date(video.dateUploaded).toLocaleString()})`,
-        title: video.title,
-        image: thumbnailUrl(video.guid),
-    }));
-}
-
 function comboboxUpdated(value) {
-    update(value);
+    update(value === NONE || ! value ? null : value);
 }
 
 onMounted(() => {

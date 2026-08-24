@@ -16,7 +16,7 @@
     "No videos found.": "No videos found.",
     "Save": "Save",
     "Search videos": "Search videos",
-    "Select Media...": "Select Media...",
+    "Select video...": "Select video...",
     "Select new thumbnail": "Select new thumbnail",
     "Sign Up Now": "Sign Up Now",
     "Thank you for your support!": "Thank you for your support!",
@@ -52,5 +52,7 @@
     "Size": "Size",
     "Saving...": "Saving...",
     "Wrong timestamp format for thumbnail creation.": "Wrong timestamp format for thumbnail creation.",
-    "Manage Bunny videos": "Manage Bunny videos"
+    "Manage Bunny videos": "Manage Bunny videos",
+    "No video": "No video",
+    "video not found": "video not found"
 }
