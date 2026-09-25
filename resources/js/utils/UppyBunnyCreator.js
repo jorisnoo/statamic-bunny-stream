@@ -17,16 +17,28 @@ class UppyBunnyCreator extends BasePlugin {
     }
 
     prepareUpload = async (fileIDs) => {
-        const promises = fileIDs.map((fileID) => {
+        const promises = fileIDs.map(async (fileID) => {
             const file = this.uppy.getFile(fileID);
 
-            return this.create(file)
-                .then(({ guid, upload }) => {
-                    this.uppy.setFileMeta(fileID, { bunnyId: guid, bunnyUpload: upload });
-                })
-                .catch((err) => {
-                    this.uppy.log(err, 'warning');
+            if (file.meta.bunnyUpload) {
+                return;
+            }
+
+            try {
+                const { guid, upload } = await this.create(file);
+
+                this.uppy.setFileMeta(fileID, {
+                    bunnyId: guid,
+                    bunnyUpload: upload,
+                    filetype: file.type,
+                    title: file.meta.name,
                 });
+            } catch (error) {
+                throw new Error(__('Upload failed for :file: :details', {
+                    file: file.name,
+                    details: error.message,
+                }), { cause: error });
+            }
         });
 
         const emitPreprocessCompleteForAll = () => {
@@ -40,8 +52,11 @@ class UppyBunnyCreator extends BasePlugin {
         // above when each is processed?
         // Because it leads to StatusBar showing a weird “upload 6 files” button,
         // while waiting for all the files to complete pre-processing.
-        const result_1 = await Promise.all(promises);
-        return emitPreprocessCompleteForAll(result_1);
+        try {
+            await Promise.all(promises);
+        } finally {
+            emitPreprocessCompleteForAll();
+        }
     };
 
     install() {

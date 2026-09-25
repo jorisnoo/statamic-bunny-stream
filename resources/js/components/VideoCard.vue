@@ -1,15 +1,24 @@
 <template>
     <tr
-        :class="currentVideo.status >= 4 ? 'tw:cursor-pointer hover:tw:bg-gray-50 dark:hover:tw:bg-dark-400' : ''"
-        @click="currentVideo.status >= 4 && $emit('select', currentVideo)"
+        :class="isPlayable ? 'tw:cursor-pointer hover:tw:bg-gray-50 dark:hover:tw:bg-dark-400' : ''"
+        @click="isPlayable && $emit('select', currentVideo)"
     >
         <td>
             <div class="tw:flex tw:items-center tw:gap-2">
-                <template v-if="currentVideo.status >= 4">
+                <template v-if="isPlayable">
                     <img :src="thumbnailUrl" class="tw:size-16 tw:rounded tw:object-cover tw:shrink-0" />
                     <span class="tw:text-sm tw:font-medium tw:truncate">
                         {{ currentVideo.title }}
                     </span>
+                </template>
+                <template v-else-if="hasFailed">
+                    <div class="tw:size-16 tw:rounded tw:bg-red-100 tw:flex tw:items-center tw:justify-center tw:shrink-0">
+                        <span class="tw:text-xl tw:font-bold tw:text-red-600">!</span>
+                    </div>
+                    <div>
+                        <div class="tw:text-sm tw:font-medium tw:truncate">{{ currentVideo.title }}</div>
+                        <div class="tw:text-sm tw:text-red-600">{{ failureMessage }}</div>
+                    </div>
                 </template>
                 <template v-else>
                     <div class="tw:size-16 tw:rounded tw:bg-gray-300 tw:dark:bg-dark-200 tw:flex tw:items-center tw:justify-center tw:shrink-0">
@@ -25,8 +34,11 @@
             </div>
         </td>
         <td class="tw:hidden tw:md:table-cell">
-            <span v-if="currentVideo.status >= 4" class="tw:text-sm tw:text-gray-500">
+            <span v-if="isPlayable" class="tw:text-sm tw:text-gray-500">
                 {{ formatDate(currentVideo.dateUploaded) }}
+            </span>
+            <span v-else-if="hasFailed" class="tw:text-sm tw:text-red-600">
+                {{ failureMessage }}
             </span>
             <span v-else class="tw:text-sm tw:text-gray-500">
                 {{ __('Processing...') }}
@@ -68,27 +80,43 @@ export default {
             isLoading: false,
             triggerDeletion: false,
             thumbnailCacheBuster: '',
+            polling: null,
+            thumbnailUpdatedHandler: null,
         }
     },
     computed: {
+        isPlayable() {
+            return [3, 4].includes(this.currentVideo.status);
+        },
+        hasFailed() {
+            return [5, 8].includes(this.currentVideo.status);
+        },
+        isProcessing() {
+            return !this.isPlayable && !this.hasFailed;
+        },
+        failureMessage() {
+            return this.currentVideo.status === 8 ? __('Upload failed.') : __('Encoding failed.');
+        },
         thumbnailUrl() {
             const base = `https://${this.bunnyHostname}/${this.currentVideo.guid}/${this.currentVideo.thumbnailFileName}`;
             return this.thumbnailCacheBuster ? `${base}?v=${this.thumbnailCacheBuster}` : base;
         },
     },
     mounted() {
-        if (this.currentVideo.status < 4) {
+        if (this.isProcessing) {
             this.polling = setInterval(() => {
                 this.loadVideo();
             }, 5000);
         }
 
-        emitter.on(`thumbnail-updated:${this.currentVideo.guid}`, () => {
+        this.thumbnailUpdatedHandler = () => {
             this.thumbnailCacheBuster = Date.now();
-        });
+        };
+        emitter.on(`thumbnail-updated:${this.currentVideo.guid}`, this.thumbnailUpdatedHandler);
     },
     beforeUnmount() {
-        emitter.off(`thumbnail-updated:${this.currentVideo.guid}`);
+        clearInterval(this.polling);
+        emitter.off(`thumbnail-updated:${this.currentVideo.guid}`, this.thumbnailUpdatedHandler);
     },
     methods: {
         formatDate(dateString) {
@@ -112,7 +140,7 @@ export default {
             api.get(`${this.bunnyEndpoint}/${this.currentVideo.guid}`)
                 .then((data) => {
                     this.currentVideo = data;
-                    if (this.currentVideo.status >= 4) {
+                    if (!this.isProcessing) {
                         clearInterval(this.polling);
                         emitter.emit('load');
                     }

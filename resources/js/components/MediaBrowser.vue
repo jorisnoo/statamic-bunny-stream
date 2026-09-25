@@ -84,6 +84,7 @@ export default {
             itemsPerPage: 10,
             selectedVideo: null,
             detailOpen: false,
+            loadHandler: null,
         };
     },
     computed: {
@@ -97,13 +98,17 @@ export default {
     created() {
         this.getVideos();
 
-        emitter.on('load', (context) => {
+        this.loadHandler = (context) => {
             if (context && context.page) {
                 this.page = context.page;
             }
 
             this.getVideos();
-        });
+        };
+        emitter.on('load', this.loadHandler);
+    },
+    beforeUnmount() {
+        emitter.off('load', this.loadHandler);
     },
     methods: {
         getVideos() {
