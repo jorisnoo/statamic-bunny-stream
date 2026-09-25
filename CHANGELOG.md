@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.3.2](https://github.com/jorisnoo/statamic-bunny-stream/releases/tag/2.3.2) (2026-09-25)
+
+### Bug Fixes
+
+- improve large video upload reliability, retries, and error reporting ([e6eb2ba](https://github.com/jorisnoo/statamic-bunny-stream/commit/e6eb2bacda35d7560c010d48bd6621c946478f28))
+
 ## [2.0.0](https://github.com/jorisnoo/statamic-bunny-stream/releases/tag/2.0.0) (2026-02-13)
 
 ## [2.3.1](https://github.com/jorisnoo/statamic-bunny-stream/releases/tag/v2.3.1) (2026-08-24)
