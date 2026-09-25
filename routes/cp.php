@@ -24,3 +24,5 @@ Route::middleware('can:manage bunny videos')->name('bunny.cp.')->group(function 
         Route::post('/{guid}/transcribe', [VideosController::class, 'transcribe'])->name('transcribe');
     });
 });
+
+Route::match(['get', 'post'], '/bunny/asset-stream', \Noo\BunnyStream\Http\Controllers\Cp\AssetStreamController::class)->name('bunny.cp.asset');

@@ -12,6 +12,7 @@ class BunnyVideo extends ArrayableString
         protected string|int $libraryId,
         protected ?string $tokenKey = null,
         protected int $tokenExpiry = 24,
+        protected string $thumbnailFilename = 'thumbnail.jpg',
     ) {
         parent::__construct($this->url());
     }
@@ -54,7 +55,7 @@ class BunnyVideo extends ArrayableString
 
     public function thumbnail(): string
     {
-        return "https://{$this->hostname}/{$this->guid}/thumbnail.jpg";
+        return "https://{$this->hostname}/{$this->guid}/".rawurlencode(basename($this->thumbnailFilename));
     }
 
     public function guid(): string

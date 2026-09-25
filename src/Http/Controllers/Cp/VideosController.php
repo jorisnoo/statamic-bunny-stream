@@ -65,7 +65,13 @@ class VideosController extends CpController
 
     public function destroy(BunnyClient $bunny, VideoRepository $videos, string $guid)
     {
-        $bunny->delete($guid);
+        abort_unless(config('statamic.bunny-stream.delete_remote', false), 409, 'Remote deletion is disabled during asset migration.');
+        foreach (\Noo\BunnyStream\Assets\Streams::assets() as $asset) {
+            $data = $asset->get('bunny_stream', []);
+            abort_if(($data['library_id'] ?? null) === (string) config('statamic.bunny-stream.library_id')
+                && in_array($guid, [$data['guid'] ?? null, $data['pending_guid'] ?? null], true), 409, 'Delete the owning Statamic asset instead.');
+        }
+        \Noo\BunnyStream\Assets\Streams::delete($guid, (string) config('statamic.bunny-stream.library_id'));
 
         $videos->forget($guid);
 

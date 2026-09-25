@@ -15,6 +15,9 @@ class ServiceProvider extends AddonServiceProvider
     protected $commands = [
         Console\Commands\CleanupCommand::class,
         Console\Commands\BackupCommand::class,
+        Console\Commands\ImportAssetsCommand::class,
+        Console\Commands\MigrateFieldsCommand::class,
+        Console\Commands\RollbackCommand::class,
     ];
 
     protected $vite = [
@@ -57,6 +60,9 @@ class ServiceProvider extends AddonServiceProvider
         });
 
         Nav::extend(function ($nav) {
+            if (! config('statamic.bunny-stream.show_dashboard', true)) {
+                return;
+            }
             $nav->content(__('Media Browser'))
                 ->section('Content')
                 ->route('bunny.cp.videoBrowser')
@@ -65,6 +71,9 @@ class ServiceProvider extends AddonServiceProvider
         });
 
         Fieldtypes\Bunny::register();
+        Fieldtypes\BunnyStream::register();
+        $this->app['events']->subscribe(Assets\Subscriber::class);
+        $this->app['events']->subscribe(Migration\RestoreSubscriber::class);
 
         $this->mergeConfigFrom(__DIR__ . '/../config/bunny-stream.php', 'statamic.bunny-stream');
         $this->loadJsonTranslationsFrom(__DIR__ . '/../lang');
