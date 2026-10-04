@@ -2,7 +2,7 @@
 
 ## [2.0.0](https://github.com/jorisnoo/statamic-bunny-stream/releases/tag/2.0.0) (2026-02-13)
 
-## [2.3.1](https://github.com/jorisnoo/statamic-bunny-stream/releases/tag/v2.3.1) (2026-08-24)
+## [2.3.1](https://github.com/jorisnoo/statamic-bunny-stream/releases/tag/2.3.1) (2026-08-24)
 
 ### Features
 
@@ -11,7 +11,7 @@
 ### Code Refactoring
 
 - clarify video selection UI and add error state translations ([fe6ac8d](https://github.com/jorisnoo/statamic-bunny-stream/commit/fe6ac8d730451b635a7a36b4bdf294e668c6cef4))
-## [2.3.0](https://github.com/jorisnoo/statamic-bunny-stream/releases/tag/v2.3.0) (2026-08-14)
+## [2.3.0](https://github.com/jorisnoo/statamic-bunny-stream/releases/tag/2.3.0) (2026-08-14)
 
 ### Features
 
@@ -28,7 +28,7 @@
 - **deps:** minor update ([627831f](https://github.com/jorisnoo/statamic-bunny-stream/commit/627831f0ed51d6aad6fa9775749fba1cbaebdd3f))
 - tidy metadata, add justfile, stop tracking package-lock.json ([83e0688](https://github.com/jorisnoo/statamic-bunny-stream/commit/83e0688d2038e66e255016c4d218313462940b5d))
 - simplify dependabot auto-merge and add package-lock.json to gitignore ([ef11d45](https://github.com/jorisnoo/statamic-bunny-stream/commit/ef11d4532f9146b67847e698ca219f5b6022f272))
-## [2.2.0](https://github.com/jorisnoo/statamic-bunny-stream/releases/tag/v2.2.0) (2026-03-30)
+## [2.2.0](https://github.com/jorisnoo/statamic-bunny-stream/releases/tag/2.2.0) (2026-03-30)
 
 ### Features
 
@@ -38,7 +38,7 @@
 ### Bug Fixes
 
 - **thumbnail:** add Referer header to thumbnail requests ([67486f3](https://github.com/jorisnoo/statamic-bunny-stream/commit/67486f346ebcc601a14d319ea6aeec807bd9168b))
-## [2.1.3](https://github.com/jorisnoo/statamic-bunny-stream/releases/tag/v2.1.3) (2026-03-27)
+## [2.1.3](https://github.com/jorisnoo/statamic-bunny-stream/releases/tag/2.1.3) (2026-03-27)
 
 ### Code Refactoring
 
@@ -47,7 +47,7 @@
 ### Continuous Integration
 
 - add dependabot configuration and auto-merge workflow ([2abca99](https://github.com/jorisnoo/statamic-bunny-stream/commit/2abca995fa0a0c19edc86a6477cfe3b4faa47ceb))
-## [2.1.2](https://github.com/jorisnoo/statamic-bunny-stream/releases/tag/v2.1.2) (2026-03-04)
+## [2.1.2](https://github.com/jorisnoo/statamic-bunny-stream/releases/tag/2.1.2) (2026-03-04)
 
 ### Features
 
@@ -67,7 +67,7 @@
 ### Continuous Integration
 
 - simplify asset commit workflow by using file_pattern instead of manual git add ([f431c04](https://github.com/jorisnoo/statamic-bunny-stream/commit/f431c04feff90e405bc62ee82523ccaec96693e4))
-## [2.1.1](https://github.com/jorisnoo/statamic-bunny-stream/releases/tag/v2.1.1) (2026-03-04)
+## [2.1.1](https://github.com/jorisnoo/statamic-bunny-stream/releases/tag/2.1.1) (2026-03-04)
 
 ### Features
 
@@ -87,7 +87,7 @@
 ### Continuous Integration
 
 - simplify asset commit workflow by using file_pattern instead of manual git add ([f431c04](https://github.com/jorisnoo/statamic-bunny-stream/commit/f431c04feff90e405bc62ee82523ccaec96693e4))
-## [2.1.0](https://github.com/jorisnoo/statamic-bunny-stream/releases/tag/v2.1.0) (2026-03-01)
+## [2.1.0](https://github.com/jorisnoo/statamic-bunny-stream/releases/tag/2.1.0) (2026-03-01)
 
 ### Features
 
