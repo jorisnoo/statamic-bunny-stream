@@ -77,7 +77,7 @@ This addon provides a Bunny fieldtype that you can add to any blueprint. It also
 
 Use the video browser in the Control Panel (under the Bunny Stream navigation item) to upload, browse, and manage your videos.
 
-Access to the video browser requires the `Manage Bunny videos` permission (super admins always have it). Assign it to a role under Users > Roles in the Bunny Stream permission group.
+Access to the video browser requires the `Manage Bunny videos` permission (super admins always have it). Assign it to a role under Users > Roles in the Bunny Stream permission group. The Bunny field's video picker is available to users with that permission or any editing permission (for example `edit articles entries`).
 
 ### Frontend Templates
 
@@ -179,7 +179,7 @@ Enable existing asset containers in `config/statamic/bunny-stream.php`:
 
 Editors upload originals to these containers and select them with ordinary Assets fields in entries, Bard, and Replicator. Video uploads queue a transfer to Bunny. The asset editor automatically gains a **Bunny Stream** field with status, playback, retry, custom thumbnails, and the optional chapter tools. Images and other files are unaffected. Metadata is managed by the integration; editing the form cannot replace remote GUIDs.
 
-Use a persistent Laravel queue connection, such as database or Redis. The configured `queue` is a queue **name**, not a connection. Run its workers continuously. Upload jobs allow one hour; set the connection's `retry_after` (or SQS visibility timeout) above 3660 seconds and the worker timeout to 3600 seconds. Encoding polls run once per minute with a bounded attempt count. Queue failures remain visible in the asset editor and Laravel's failed-job tooling. The CP status display polls for up to ten minutes; refresh to continue monitoring long encodes.
+Use a persistent Laravel queue connection, such as database or Redis. The configured `queue` is a queue **name**, not a connection. Run its workers continuously. Upload jobs allow one hour; set the connection's `retry_after` (or SQS visibility timeout) above 3660 seconds and the worker timeout to 3600 seconds. After upload, the job checks Bunny's encoding status once a minute for up to 12 hours. Queue failures remain visible in the asset editor and Laravel's failed-job tooling. The CP status display polls for up to ten minutes; refresh to continue monitoring long encodes.
 
 Configure PHP, your web server/proxy, and Statamic's upload limits for the largest original you expect. Back up both the asset disk and its `.meta` files. Originals inherit the disk's access policy; use a private disk when originals must not be publicly downloadable. Bunny iframe signing does not change asset-disk visibility.
 
@@ -204,47 +204,23 @@ Keep the native asset `url` for the stored source. The asset's `bunny_stream` fi
 @endif
 ```
 
+To write templates that work both before and after migrating a legacy `bunny` field, use the `bunny_stream` modifier, or `BunnyVideo::from()` in Blade. Each accepts either a legacy value or an asset:
+
+```antlers
+{{ stream = video | bunny_stream }}
+{{ if stream }}{{ stream:embed }}{{ /if }}
+```
+
 These examples assume a single Assets field (`max_files: 1`). Loop through multi-asset fields as usual. Before the first upload is ready, `bunny_stream` is null; after a replacement starts, it continues to expose the previous stream. Existing `bunny` fields and their templates continue to work throughout migration.
 
 ## Migrating existing content
 
-Migration is explicit: installing/updating the addon never rewrites content. Test on a staging copy first.
+Moving a site from legacy `bunny` fields to assets takes two steps:
 
-1. Configure the target container and its backups. Leave `delete_remote` disabled.
-2. Inventory and import the Bunny library:
+1. `bunny-stream:import-assets` imports the Bunny library as assets while the site stays live.
+2. `bunny-stream:migrate-fields` converts fields and content in a short maintenance window. It is journaled, so it can be resumed or rolled back.
 
-   ```bash
-   php artisan bunny-stream:import-assets videos --dry-run
-   php artisan bunny-stream:import-assets videos
-   ```
-
-   Imports download retained originals first and use an MP4 derivative when the original returns 404. GUIDs, remote thumbnails, and chapters are preserved; no new remote videos are created. Derivatives are labelled as such. Downloads are inspected before an asset is registered. Failed items remain in the import manifest and block conversion of their references. Rerun to resume; existing asset mappings are found by library/GUID, including renamed and replaced assets. Historical GUID aliases remain on the asset so old revisions keep resolving after a replacement.
-
-   [Bunny originals](https://bunny.net/docs/stream/storage-structure) require “Keep original files” to have been enabled. [MP4 fallbacks](https://bunny.net/docs/stream/mp4-downloads) must also exist for the video. Protected downloads may require `BUNNY_STREAM_CDN_TOKEN_KEY` (the Pull Zone token key, distinct from iframe signing) and `BUNNY_STREAM_DOWNLOAD_REFERER`. API credentials are never sent to the CDN. Authentication failures are reported rather than treated as missing originals.
-
-3. Prepare matching template changes, then preview a field batch:
-
-   ```bash
-   php artisan bunny-stream:migrate-fields --container=videos --field=bunny_video --dry-run
-   # Or explicitly select every Bunny definition:
-   php artisan bunny-stream:migrate-fields --container=videos --field='*' --dry-run
-   ```
-
-   `--field` selects raw definition handles across the site, including every use of a shared fieldset and its prefixed imports. Repeat the option for more handles. The target container may be omitted when exactly one is enabled. The tool converts single GUIDs to single asset paths and keeps handles, validation, conditions, and poster fields. It traverses Statamic's native Bard, Replicator, Grid, and Group fields. Forms, navigation/custom content owners, and unsupported nested fieldtypes are blocked when affected. All references in the selected batch must resolve before anything is written.
-
-4. Back up content and blueprints, enter maintenance mode, and stop queue workers, scheduled tasks, and other content writers. Apply the same command without `--dry-run`, deploy the matching templates, restart workers, and leave maintenance mode after verification. The command prints a journal identifier before writing.
-5. After every field and template has migrated, set `show_dashboard` to `false`. Legacy selection endpoints remain available. Retain the compatibility fieldtype and migration markers while historical revisions may still be restored.
-
-The converter covers file-backed content, users, asset metadata, and working copies. Affected database/custom content stores require their own repository migration and are rejected rather than silently skipped. Historical revision files remain unchanged: saving/restoring a working copy translates mapped GUIDs in fields marked `bunny_stream_migrated`. Missing or ambiguous assets block that save. Do not remove these blueprint markers until legacy revisions are no longer needed.
-
-Journals and import reports live in `storage/app/bunny-stream`. Journals contain the exact before/after contents, potentially including private content and user data; keep that directory private and backed up during the migration window. Under the same editing freeze:
-
-```bash
-php artisan bunny-stream:migrate-fields --resume=migration-YYYYMMDD-HHMMSS-identifier
-php artisan bunny-stream:rollback migration-YYYYMMDD-HHMMSS-identifier
-```
-
-Resume and rollback check every file before writing and refuse subsequent edits. Rollback restores content and definitions, leaving imported assets and remote videos intact. Restore the corresponding templates before reopening the site. Roll back multiple batches in reverse order. This tool does not rewrite templates automatically or migrate historical revision files.
+Nothing changes until you run them. **Follow the step-by-step guide in [MIGRATION.md](MIGRATION.md).** It covers Bunny settings, queue setup, template changes, a dry run, verification, rollback and troubleshooting.
 
 ### Development checks
 
