@@ -16,10 +16,14 @@ class Streams
         return $asset->isVideo() && in_array($asset->containerHandle(), config('statamic.bunny-stream.asset_containers', []), true);
     }
 
-    public static function assets(): iterable
+    // Pass $enabledOnly when only stream-enabled containers matter; ownership checks scan everything.
+    public static function assets(bool $enabledOnly = false): iterable
     {
+        $handles = config('statamic.bunny-stream.asset_containers', []);
         foreach (AssetContainer::all() as $container) {
-            yield from $container->queryAssets()->get();
+            if (! $enabledOnly || in_array($container->handle(), $handles, true)) {
+                yield from $container->queryAssets()->get();
+            }
         }
     }
 
@@ -29,7 +33,7 @@ class Streams
         if ($asset && ($asset->get('bunny_stream')['key'] ?? null) === $key) {
             return $asset;
         }
-        foreach (self::assets() as $asset) {
+        foreach (self::assets(true) as $asset) {
             if (($asset->get('bunny_stream')['key'] ?? null) === $key) {
                 return $asset;
             }
@@ -64,14 +68,27 @@ class Streams
             'legacy_guids' => array_values(array_unique(array_filter(array_merge($data['legacy_guids'] ?? [], [$data['guid'] ?? null])))),
         ]);
         $asset->set('bunny_stream', $data)->saveQuietly();
-        self::dispatch($asset);
+        // Give replacement listeners time to merge the previous stream before a worker reads the asset.
+        self::dispatch($asset, now()->addSeconds(10));
     }
 
-    public static function dispatch($asset): void
+    // Upload events must not fail after Statamic has stored the file; record the problem for a retry instead.
+    public static function queueFromEvent($asset, bool $replace = false): void
+    {
+        try {
+            self::queue($asset, $replace);
+        } catch (\RuntimeException $e) {
+            report($e);
+            $asset->set('bunny_stream', array_merge($asset->get('bunny_stream', []), ['state' => 'not_synced', 'error' => $e->getMessage()]))->saveQuietly();
+        }
+    }
+
+    public static function dispatch($asset, $delay = null): void
     {
         self::requireQueue();
         $data = $asset->get('bunny_stream');
         SyncVideo::dispatch($asset->id(), $data['key'], $data['generation'])
+            ->delay($delay)
             ->onQueue(config('statamic.bunny-stream.queue', 'default'));
     }
 

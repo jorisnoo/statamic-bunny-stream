@@ -183,7 +183,7 @@ Use a persistent Laravel queue connection, such as database or Redis. The config
 
 Configure PHP, your web server/proxy, and Statamic's upload limits for the largest original you expect. Back up both the asset disk and its `.meta` files. Originals inherit the disk's access policy; use a private disk when originals must not be publicly downloadable. Bunny iframe signing does not change asset-disk visibility.
 
-Reuploads retain the previous stream until the replacement is ready. Renames retain stream identity. Remote cleanup is queued, retryable, and disabled by default, including the legacy dashboard's delete endpoint. Enable it only after every consumer of the library has migrated. A delete job refuses to remove a GUID still owned by another asset. Turning cleanup on does not retroactively delete videos retained while it was off.
+Reuploads retain the previous stream until the replacement is ready. Renames retain stream identity. Once `asset_containers` is set, remote cleanup is queued, retryable, and disabled by default, including the legacy dashboard's delete endpoint. With no asset containers configured, the dashboard deletes immediately as before. Enable it only after every consumer of the library has migrated. A delete job refuses to remove a GUID still owned by another asset. Turning cleanup on does not retroactively delete videos retained while it was off.
 
 If creating a remote video is interrupted before its GUID is saved, retries deliberately stop to avoid creating duplicates. Find the remote video with the generation identifier shown in its Bunny title, then use **Attach and retry** in the asset editor. If no such video exists, investigate the failed request before restarting that upload.
 

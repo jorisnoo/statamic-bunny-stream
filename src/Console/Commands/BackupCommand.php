@@ -130,7 +130,8 @@ class BackupCommand extends Command
         $tempPath = tempnam(sys_get_temp_dir(), 'bunny_backup_');
 
         try {
-            $bunny->download($guid, $tempPath);
+            // Prefer the uploaded original; a rendition is only a fallback.
+            $bunny->downloadSource($guid, $tempPath, $video);
 
             $stream = fopen($tempPath, 'r');
             $storage->writeStream("bunny-stream/{$guid}.mp4", $stream);

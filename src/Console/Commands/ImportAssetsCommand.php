@@ -3,7 +3,6 @@
 namespace Noo\BunnyStream\Console\Commands;
 
 use Illuminate\Console\Command;
-use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 use Noo\BunnyStream\Assets\Streams;
@@ -68,14 +67,7 @@ class ImportAssetsCommand extends Command
                 if ($this->option('dry-run')) { $this->line('Import '.$guid.' — '.($video['title'] ?? 'Untitled')); continue; }
                 $temp = tempnam(sys_get_temp_dir(), 'bunny-import-');
                 try {
-                    $source = 'original';
-                    try {
-                        $bunny->downloadOriginal($guid, $temp);
-                    } catch (RequestException $e) {
-                        if (! in_array($e->response->status(), [404], true)) { throw $e; }
-                        $source = 'derivative';
-                        $bunny->download($guid, $temp, $video);
-                    }
+                    $source = $bunny->downloadSource($guid, $temp, $video);
                     $mime = (new \finfo(FILEINFO_MIME_TYPE))->file($temp);
                     $extensions = ['video/mp4' => 'mp4', 'video/quicktime' => 'mov', 'video/webm' => 'webm',
                         'video/x-matroska' => 'mkv', 'video/x-msvideo' => 'avi', 'video/mpeg' => 'mpeg', 'video/x-ms-wmv' => 'wmv'];

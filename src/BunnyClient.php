@@ -78,6 +78,25 @@ class BunnyClient
         throw new \RuntimeException('No downloadable MP4 is available for '.$guid.'. Supply a source file or enable MP4 fallback in Bunny.');
     }
 
+    /**
+     * Download the original upload, falling back to the best MP4 rendition when Bunny kept no original.
+     *
+     * @return string 'original' or 'derivative'
+     */
+    public function downloadSource(string $guid, string $sinkPath, ?array $video = null): string
+    {
+        try {
+            $this->downloadOriginal($guid, $sinkPath);
+
+            return 'original';
+        } catch (\Illuminate\Http\Client\RequestException $e) {
+            if ($e->response->status() !== 404) { throw $e; }
+        }
+        $this->download($guid, $sinkPath, $video);
+
+        return 'derivative';
+    }
+
     public function downloadOriginal(string $guid, string $sinkPath): void
     {
         $this->downloadFile($guid, 'original', $sinkPath);

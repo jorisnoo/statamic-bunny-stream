@@ -3,7 +3,8 @@ return [
     // Existing asset containers whose video uploads should be sent to Bunny.
     'asset_containers' => [],
 
-    // Use a persistent queue connection (not sync) for uploads and encoding polls.
+    // Queue name (not a connection) for uploads and encoding polls. The default
+    // queue connection must be persistent (not sync), with workers on this queue.
     'queue' => 'default',
 
     // Keep remote videos during migration, including videos used by legacy fields.

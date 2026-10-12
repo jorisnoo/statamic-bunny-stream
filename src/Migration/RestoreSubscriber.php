@@ -5,7 +5,6 @@ namespace Noo\BunnyStream\Migration;
 use Illuminate\Validation\ValidationException;
 use Statamic\Events;
 use Statamic\Facades\Entry;
-use Statamic\Facades\Term;
 
 class RestoreSubscriber
 {
@@ -17,11 +16,9 @@ class RestoreSubscriber
         }
         $events->listen(Events\RevisionSaving::class, function ($e) {
             $revision = $e->revision;
-            if (! $revision->isWorkingCopy()) { return; }
-            $attributes = $revision->attributes();
-            $item = str_starts_with($revision->key(), 'collections/')
-                ? Entry::find($attributes['id']) : Term::find($attributes['id']);
-            if ($item && str_starts_with($revision->key(), 'taxonomies/')) { $item = $item->in(explode('/', $revision->key())[2]); }
+            // Only entries are revisable in Statamic; other keys come from third-party repositories.
+            if (! $revision->isWorkingCopy() || ! str_starts_with($revision->key(), 'collections/')) { return; }
+            $item = Entry::find($revision->attributes()['id']);
             if (! $item) { throw ValidationException::withMessages(['bunny_stream' => 'Cannot resolve the item for this revision.']); }
             $item = $item->makeFromRevision($revision);
             $this->convert($item);

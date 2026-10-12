@@ -65,6 +65,13 @@ class VideosController extends CpController
 
     public function destroy(BunnyClient $bunny, VideoRepository $videos, string $guid)
     {
+        // Sites that have not enabled asset containers keep the original immediate delete.
+        if (! config('statamic.bunny-stream.asset_containers')) {
+            $bunny->delete($guid);
+            $videos->forget($guid);
+
+            return response()->noContent();
+        }
         abort_unless(config('statamic.bunny-stream.delete_remote', false), 409, 'Remote deletion is disabled during asset migration.');
         foreach (\Noo\BunnyStream\Assets\Streams::assets() as $asset) {
             $data = $asset->get('bunny_stream', []);

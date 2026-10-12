@@ -8,14 +8,14 @@ class Subscriber
 {
     public function subscribe($events): void
     {
-        $events->listen(Events\AssetUploaded::class, fn ($e) => Streams::queue($e->asset));
-        $events->listen(Events\AssetReuploaded::class, fn ($e) => Streams::queue($e->asset, true));
+        $events->listen(Events\AssetUploaded::class, fn ($e) => Streams::queueFromEvent($e->asset));
+        $events->listen(Events\AssetReuploaded::class, fn ($e) => Streams::queueFromEvent($e->asset, true));
         $events->listen(Events\AssetReplaced::class, function ($e) {
-            Streams::queue($e->newAsset);
+            Streams::queueFromEvent($e->newAsset);
             $old = $e->originalAsset->get('bunny_stream', []);
             $data = $e->newAsset->get('bunny_stream', []);
             if (! $e->originalAsset->exists() && ! empty($old['guid']) && ! empty($data)
-                && empty($data['guid']) && $old['library_id'] === $data['library_id']) {
+                && empty($data['guid']) && ($old['library_id'] ?? null) === ($data['library_id'] ?? null)) {
                 $e->newAsset->set('bunny_stream', array_merge($data, ['guid' => $old['guid'], 'metadata' => $old['metadata'] ?? []]))->saveQuietly();
             }
             if (! $e->originalAsset->exists() && isset($old['library_id'], $data['library_id']) && $old['library_id'] === $data['library_id']) {

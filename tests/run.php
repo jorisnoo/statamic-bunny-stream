@@ -9,7 +9,7 @@ spl_autoload_register(function ($class) {
 $root = sys_get_temp_dir().'/bunny-tests-'.bin2hex(random_bytes(6));
 mkdir($root, 0700, true);
 foreach (['bootstrap/cache', 'config', 'routes', 'resources/blueprints', 'resources/fieldsets', 'storage/framework/views', 'storage/framework/cache', 'storage/logs', 'public/assets', 'content'] as $dir) { mkdir($root.'/'.$dir, 0700, true); }
-file_put_contents($root.'/composer.json', '{"name":"tests/bunny","extra":{"laravel":{"dont-discover":["*"]}}}');
+file_put_contents($root.'/composer.json', '{"name":"tests/bunny","autoload":{"psr-4":{"App\\\\":"app/"}},"extra":{"laravel":{"dont-discover":["*"]}}}');
 file_put_contents($root.'/config/app.php', '<?php return ["name"=>"Test", "env"=>"testing", "key"=>"base64:'.base64_encode(random_bytes(32)).'", "url"=>"http://localhost", "timezone"=>"UTC", "locale"=>"en"];');
 symlink(realpath(__DIR__.'/../vendor'), $root.'/vendor');
 $app = Illuminate\Foundation\Application::configure(basePath: $root)
@@ -126,8 +126,6 @@ $termBlueprint->save();
 $term = Statamic\Facades\Term::make('example')->taxonomy('topics')->set('hero_clip', $guid);
 $term->save();
 $termBefore = file_get_contents($term->path());
-$termWorking = $term->inDefaultLocale()->makeWorkingCopy();
-$termWorking->save();
 $globalBlueprint = Blueprint::make('settings')->setNamespace('globals')->setContents(['tabs' => ['main' => ['sections' => [['fields' => [['import' => 'shared', 'prefix' => 'hero_']]]]]]]);
 $globalBlueprint->save();
 $global = Statamic\Facades\GlobalSet::make('settings')->title('Settings');
@@ -162,7 +160,6 @@ check($result === 0, 'migration applies complete shared field batch: '.$kernel->
 check(str_contains(file_get_contents($entryPath), 'hero_clip: renamed.mp4'), 'prefixed shared field value migrated');
 check(str_contains(file_get_contents($revision->path()), 'hero_clip: renamed.mp4'), 'working copy migrated with its field definition');
 check(str_contains(file_get_contents($term->path()), 'hero_clip: renamed.mp4'), 'taxonomy term migrated');
-check(str_contains(file_get_contents($termWorking->path()), 'hero_clip: renamed.mp4'), 'taxonomy working copy migrated');
 check(str_contains(file_get_contents($variables->path()), 'hero_clip: renamed.mp4'), 'global variables migrated');
 check(str_contains(file_get_contents($contentUser->path()), 'hero_clip: renamed.mp4'), 'file-backed users migrated');
 check(str_contains($metadataAsset->disk()->get($metadataAsset->metaPath()), 'hero_clip: renamed.mp4'), 'asset metadata references migrated');
@@ -305,4 +302,48 @@ catch (RuntimeException $e) { check(Http::recorded()->count() === $count && str_
 config(['queue.connections.database.driver' => 'sync']);
 try { Streams::requireQueue(); throw new Exception('Sync queue accepted'); }
 catch (RuntimeException $e) { check(str_contains($e->getMessage(), 'persistent'), 'persistent queue is required'); }
+// Upload events keep the stored file and record the problem; retry starts a clean attempt.
+$container->disk()->put('sync.mp4', file_get_contents(__DIR__.'/fixtures/video.mp4'));
+$syncAsset = Asset::make()->container($container)->path('sync.mp4');
+$syncAsset->saveQuietly();
+Statamic\Events\AssetUploaded::dispatch($syncAsset, 'sync.mp4');
+$syncData = Asset::find($syncAsset->id())->get('bunny_stream');
+check($syncData['state'] === 'not_synced' && str_contains($syncData['error'], 'persistent'), 'upload events record queue misconfiguration without failing');
+config(['queue.connections.database.driver' => 'database']);
+$admin = Statamic\Facades\User::make()->email('admin@example.test')->makeSuper();
+$admin->save();
+$app['auth']->setUser($admin);
+$retry = fn () => tap(Illuminate\Http\Request::create('/bunny/asset-stream', 'POST', ['asset' => $syncAsset->id(), 'action' => 'retry']), fn ($r) => $r->setUserResolver(fn () => $admin));
+$pushed = Queue::pushed(SyncVideo::class)->count();
+$response = $controller($retry(), new BunnyClient);
+check($response['state'] === 'queued' && $response['error'] === null && Queue::pushed(SyncVideo::class)->count() === $pushed + 1, 'retry queues an unsynced upload');
+Asset::find($syncAsset->id())->set('bunny_stream', array_merge(Asset::find($syncAsset->id())->get('bunny_stream'), ['state' => 'uploading', 'error' => 'Transfer failed']))->saveQuietly();
+$response = $controller($retry(), new BunnyClient);
+check($response['state'] === 'uploading' && $response['error'] === null, 'retry clears the previous error so the editor keeps polling');
+// Without asset containers the dashboard keeps deleting immediately.
+config(['statamic.bunny-stream.asset_containers' => [], 'statamic.bunny-stream.delete_remote' => false]);
+$deletes = [];
+fakeHttp(function ($request) use (&$deletes) { $deletes[] = $request->method(); return Http::response([], 200); });
+(new Noo\BunnyStream\Http\Controllers\Cp\VideosController($retry()))->destroy(new BunnyClient, app(Noo\BunnyStream\Repositories\VideoRepository::class), '77777777-7777-4777-8777-777777777777');
+check($deletes === ['DELETE'], 'dashboard delete is unchanged without asset containers');
+config(['statamic.bunny-stream.asset_containers' => ['videos']]);
+// Backups keep the uploaded original and use a rendition only when none was kept.
+$backupFake = new class extends BunnyClient {
+    public array $sources = [];
+    public function __construct() {}
+    public function videos(int $page = 1, int $perPage = 100, ?string $search = null): array {
+        return ['totalItems' => 2, 'items' => [['guid' => 'kept', 'title' => 'Kept', 'status' => 4], ['guid' => 'lost', 'title' => 'Lost', 'status' => 4]]];
+    }
+    public function downloadOriginal(string $guid, string $sinkPath): void {
+        if ($guid === 'lost') { throw new Illuminate\Http\Client\RequestException(new Illuminate\Http\Client\Response(new GuzzleHttp\Psr7\Response(404))); }
+        $this->sources[$guid] = 'original';
+        file_put_contents($sinkPath, 'original');
+    }
+    public function download(string $guid, string $sinkPath, ?array $video = null): void { $this->sources[$guid] = 'derivative'; file_put_contents($sinkPath, 'rendition'); }
+};
+config(['filesystems.disks.backups' => ['driver' => 'local', 'root' => $root.'/backups'], 'statamic.bunny-stream.backup_disk' => 'backups']);
+$app->instance(BunnyClient::class, $backupFake);
+$kernel->registerCommand(new Noo\BunnyStream\Console\Commands\BackupCommand);
+$result = $kernel->call('bunny-stream:backup');
+check($result === 0 && $backupFake->sources === ['kept' => 'original', 'lost' => 'derivative'], 'backup prefers originals: '.$kernel->output());
 echo "All checks passed.\n";

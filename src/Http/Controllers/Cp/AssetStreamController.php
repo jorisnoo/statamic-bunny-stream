@@ -22,7 +22,17 @@ class AssetStreamController extends CpController
         if ($request->isMethod('post')) {
             switch ($request->input('action')) {
                 case 'retry':
-                    empty($data) ? Streams::queue($asset) : Streams::dispatch($asset);
+                    try {
+                        if (($data['state'] ?? 'not_synced') === 'not_synced') {
+                            Streams::queue($asset, true);
+                        } else {
+                            // Clear the previous failure so the editor keeps polling the new attempt.
+                            $asset->set('bunny_stream', array_merge($data, ['error' => null]))->saveQuietly();
+                            Streams::dispatch($asset);
+                        }
+                    } catch (\RuntimeException $e) {
+                        abort(409, $e->getMessage());
+                    }
                     break;
                 case 'attach':
                     $values = $request->validate(['guid' => ['required', 'uuid']]);

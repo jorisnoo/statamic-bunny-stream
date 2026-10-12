@@ -40,7 +40,7 @@ class References extends DataReferenceUpdater
                 continue;
             }
             $matches = [];
-            foreach (Streams::assets() as $asset) {
+            foreach (Streams::assets(true) as $asset) {
                 $stream = $asset->get('bunny_stream', []);
                 if (in_array($value, array_merge($stream['legacy_guids'] ?? [], [$stream['guid'] ?? null]), true) && ($stream['library_id'] ?? null) === (string) $library) {
                     $matches[$asset->id()] = $asset;
