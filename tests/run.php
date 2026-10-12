@@ -197,6 +197,15 @@ $result = $kernel->call('bunny-stream:rollback', ['run' => $run]);
 check($result === 0 && file_get_contents($entryPath) === $entryBefore, 'command rollback restores entry');
 check(file_get_contents($fieldset->path()) === $fieldsetBefore, 'command rollback restores shared fieldset');
 check(file_get_contents($film->path()) === $filmBefore && file_get_contents($overridePath) === file_get_contents($addonFieldsets.'/bunny_video.yaml'), 'command rollback restores the fieldset override and its entries');
+// A dry run reports every unresolved reference at once.
+$broken = [];
+foreach (['aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'] as $missing) {
+    $broken[] = tap(Statamic\Facades\Entry::make()->collection('films')->slug('missing-'.$missing[0])->data(['bunny_video' => $missing]))->saveQuietly();
+}
+$result = $kernel->call('bunny-stream:migrate-fields', ['--dry-run' => true, '--field' => ['bunny_video']]);
+$output = $kernel->output();
+check($result === 1 && str_contains($output, 'aaaaaaaa-') && str_contains($output, 'bbbbbbbb-') && str_contains($output, '2 item(s)'), 'dry run lists every unresolved reference: '.$output);
+foreach ($broken as $brokenEntry) { $brokenEntry->delete(); }
 
 
 // Import the original when present and a derivative when it is not.

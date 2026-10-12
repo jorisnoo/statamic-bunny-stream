@@ -102,22 +102,32 @@ class MigrateFieldsCommand extends Command
             }
         }
         // Re-resolve every item blueprint after shared fieldsets have changed in memory.
+        // Collect every unresolved reference so one dry run lists all of them.
+        $problems = [];
         foreach ($items as $item) {
             $blueprint = $item->blueprint();
             if (! $blueprint) { continue; }
             Definitions::clearImports($blueprint->contents());
             $blueprint->setContents(Definitions::convert($blueprint->contents(), $handles, $container, $library));
-            $copy = clone $item;
-            if (References::item($copy)->convert()) {
-                $this->content($copy, $files);
-            }
-            if (method_exists($item, 'workingCopy') && $revision = $item->workingCopy()) {
-                $copy = $item->makeFromRevision($revision);
+            try {
+                $copy = clone $item;
                 if (References::item($copy)->convert()) {
-                    $revision->attribute('data', $copy->data()->all());
-                    $this->content($revision, $files);
+                    $this->content($copy, $files);
                 }
+                if (method_exists($item, 'workingCopy') && $revision = $item->workingCopy()) {
+                    $copy = $item->makeFromRevision($revision);
+                    if (References::item($copy)->convert()) {
+                        $revision->attribute('data', $copy->data()->all());
+                        $this->content($revision, $files);
+                    }
+                }
+            } catch (\RuntimeException $e) {
+                $problems[] = $this->describe($item).': '.$e->getMessage();
             }
+        }
+        if ($problems) {
+            foreach ($problems as $problem) { $this->error($problem); }
+            throw new \RuntimeException(count($problems).' item(s) must be fixed before this batch can migrate. Nothing was written.');
         }
         $files = array_values(array_filter($files, fn ($file) => $file['before'] !== $file['after']));
         foreach ($files as $file) { $this->line((isset($file['disk']) ? $file['disk'].'::' : '').$file['path']); }
@@ -146,6 +156,13 @@ class MigrateFieldsCommand extends Command
         $raw = YAML::parse(file_get_contents($path));
         $files['local:'.$path] = Journal::change(['path' => $path], YAML::dump(array_replace($raw, $after)));
         $definition->setContents($after);
+    }
+
+    private function describe($item): string
+    {
+        if ($item instanceof AssetContract) { return 'Asset '.$item->id(); }
+        $label = class_basename($item).' '.(method_exists($item, 'id') ? $item->id() : '');
+        return method_exists($item, 'path') && is_string($path = rescue(fn () => $item->path(), null, false)) ? $label.' ('.$path.')' : $label;
     }
 
     private function content($item, array &$files): void
