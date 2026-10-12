@@ -30,8 +30,8 @@ class RestoreSubscriber
     {
         try {
             if ($item instanceof \Statamic\Taxonomies\Term) {
-                foreach ($item->localizations() as $localized) { References::item($localized)->convert(); }
-            } elseif ($item->blueprint()) { References::item($item)->convert(); }
+                foreach ($item->localizations() as $localized) { References::item($localized)->lenient()->convert(); }
+            } elseif ($item->blueprint()) { References::item($item)->lenient()->convert(); }
         } catch (\RuntimeException $e) {
             throw ValidationException::withMessages(['bunny_stream' => $e->getMessage()]);
         }

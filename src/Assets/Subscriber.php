@@ -43,9 +43,7 @@ class Subscriber
         // CP form submissions must never overwrite metadata written by queue workers.
         $events->listen(Events\AssetSaving::class, function ($e) {
             if ($e->asset->exists()) {
-                $contents = $e->asset->disk()->get($e->asset->metaPath());
-                $meta = $contents ? \Statamic\Facades\YAML::parse($contents) : [];
-                $e->asset->set('bunny_stream', $meta['data']['bunny_stream'] ?? null);
+                $e->asset->set('bunny_stream', Streams::persisted($e->asset));
             }
         });
     }

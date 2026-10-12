@@ -2,6 +2,7 @@
 
 namespace Noo\BunnyStream\Assets;
 
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 use Noo\BunnyStream\Data\BunnyVideo;
 use Noo\BunnyStream\Jobs\DeleteVideo;
@@ -27,14 +28,30 @@ class Streams
         }
     }
 
+    // The stored value, re-read so writes from queue workers since this request loaded the asset win.
+    public static function persisted($asset): ?array
+    {
+        $disk = $asset->disk();
+        if ($disk->exists($path = $asset->metaPath())) {
+            return \Statamic\Facades\YAML::parse($disk->get($path))['data']['bunny_stream'] ?? null;
+        }
+
+        // Database-backed asset drivers keep no .meta file.
+        return $asset->getOriginal('data.bunny_stream');
+    }
+
     public static function find(string $id, string $key)
     {
-        $asset = Asset::find($id);
-        if ($asset && ($asset->get('bunny_stream')['key'] ?? null) === $key) {
-            return $asset;
+        // Renames change the id; remember where the stream moved so polls skip the scan.
+        foreach (array_unique(array_filter([$id, Cache::get('bunny-stream:asset:'.$key)])) as $candidate) {
+            $asset = Asset::find($candidate);
+            if ($asset && ($asset->get('bunny_stream')['key'] ?? null) === $key) {
+                return $asset;
+            }
         }
         foreach (self::assets(true) as $asset) {
             if (($asset->get('bunny_stream')['key'] ?? null) === $key) {
+                Cache::put('bunny-stream:asset:'.$key, $asset->id(), now()->addDay());
                 return $asset;
             }
         }

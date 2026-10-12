@@ -12,7 +12,6 @@ class SyncVideo implements ShouldQueue
 {
     use Queueable;
 
-    public int $tries = 130;
     public int $maxExceptions = 5;
     public int $timeout = 3600;
     public bool $failOnTimeout = true;
@@ -25,6 +24,12 @@ class SyncVideo implements ShouldQueue
     }
 
     public function backoff(): array { return [30, 120, 600, 1800]; }
+
+    // Lock contention and encoding polls release the job; bound it by time, not attempts.
+    public function retryUntil(): \DateTimeInterface
+    {
+        return now()->addHours(12);
+    }
 
     private function asset()
     {

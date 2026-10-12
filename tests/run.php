@@ -396,4 +396,21 @@ $app->instance(BunnyClient::class, $backupFake);
 $kernel->registerCommand(new Noo\BunnyStream\Console\Commands\BackupCommand);
 $result = $kernel->call('bunny-stream:backup');
 check($result === 0 && $backupFake->sources === ['kept' => 'original', 'lost' => 'derivative'], 'backup prefers originals: '.$kernel->output());
+// Ordinary saves never fail because a migrated field points at an asset deleted since.
+Blueprint::make('clip')->setNamespace('collections.clips')->setContents(['tabs' => ['main' => ['sections' => [['fields' => [['handle' => 'clip', 'field' => ['type' => 'assets', 'container' => 'videos', 'max_files' => 1, 'bunny_stream_migrated' => '123']]]]]]]])->save();
+Statamic\Facades\Collection::make('clips')->save();
+$gone = Statamic\Facades\Entry::make()->collection('clips')->slug('gone')->data(['clip' => 'gone.mp4']);
+$gone->save();
+check(str_contains(file_get_contents($gone->path()), 'clip: gone.mp4'), 'saving content with a deleted video asset succeeds');
+// Editors can remove every chapter.
+config(['statamic.bunny-stream.chapters' => true]);
+$chaptered = Asset::make()->container($container)->path('chaptered.mp4');
+$container->disk()->put('chaptered.mp4', file_get_contents(__DIR__.'/fixtures/video.mp4'));
+$chaptered->set('bunny_stream', ['key' => 'k', 'generation' => 'g', 'library_id' => '123', 'guid' => '88888888-8888-4888-8888-888888888888', 'state' => 'ready'])->saveQuietly();
+$sent = [];
+fakeHttp(function ($request) use (&$sent) { $sent[] = [$request->method(), $request->data()]; return Http::response(['chapters' => []]); });
+$clear = Illuminate\Http\Request::create('/bunny/asset-stream', 'POST', [], [], [], ['CONTENT_TYPE' => 'application/json'], json_encode(['asset' => $chaptered->id(), 'action' => 'chapters', 'chapters' => []]));
+$clear->setUserResolver(fn () => $admin);
+$controller($clear, new BunnyClient);
+check($sent[0] === ['POST', ['chapters' => []]], 'saving an empty chapter list clears chapters');
 echo "All checks passed.\n";

@@ -51,7 +51,7 @@ class AssetStreamController extends CpController
                     break;
                 case 'chapters':
                     abort_unless($guid && config('statamic.bunny-stream.chapters', false), 409);
-                    $values = $request->validate(['chapters' => ['required', 'array'], 'chapters.*.title' => ['nullable', 'string'],
+                    $values = $request->validate(['chapters' => ['present', 'array'], 'chapters.*.title' => ['nullable', 'string'],
                         'chapters.*.start' => ['required', 'integer', 'min:0'], 'chapters.*.end' => ['required', 'integer', 'gte:chapters.*.start']]);
                     $bunny->update($guid, $values);
                     break;

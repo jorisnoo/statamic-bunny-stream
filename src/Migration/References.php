@@ -10,6 +10,17 @@ use Statamic\Support\Arr;
 
 class References extends DataReferenceUpdater
 {
+    private bool $checkPaths = true;
+
+    // Ordinary saves only translate GUIDs; a referenced asset that was since deleted
+    // is Statamic's reference updater's concern and must not block the save.
+    public function lenient(): static
+    {
+        $this->checkPaths = false;
+
+        return $this;
+    }
+
     public function convert(): bool
     {
         $this->recursivelyUpdateFields($this->getTopLevelFields());
@@ -35,6 +46,7 @@ class References extends DataReferenceUpdater
             if (! is_string($value)) { throw new \RuntimeException('Expected one video reference at '.$path); }
             $container = $field->get('container');
             if (! Str::isUuid($value)) {
+                if (! $this->checkPaths) { continue; }
                 $asset = Asset::find($container.'::'.$value);
                 if (! $asset || ! $asset->exists()) { throw new \RuntimeException('Missing migrated asset at '.$path.': '.$value); }
                 continue;
