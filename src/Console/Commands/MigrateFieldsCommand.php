@@ -144,17 +144,22 @@ class MigrateFieldsCommand extends Command
         $before = $definition->contents();
         Definitions::clearImports($before);
         $after = Definitions::convert($before, $handles, $container, $library);
-        if ($after === $before) { return; }
         $path = $definition->initialPath() ?: $definition->path();
-        if (! is_file($path) || str_starts_with(realpath($path) ?: $path, realpath(base_path('vendor')).'/')) {
+        // Convert the file as written. contents() is normalized (legacy `sections:` become `tabs:`)
+        // and includes fields Statamic ensures at runtime, neither of which belongs in the YAML.
+        $raw = is_file($path) ? YAML::parse(file_get_contents($path)) : null;
+        $converted = $raw === null ? null : Definitions::convert($raw, $handles, $container, $library);
+        if ($after === $before && $converted === $raw) { return; }
+        if ($raw === null || str_starts_with(realpath($path) ?: $path, realpath(base_path('vendor')).'/')) {
             if ($definition instanceof \Statamic\Fields\Fieldset && $definition->isNamespaced()) {
                 throw new \RuntimeException('Override the addon fieldset '.$definition->handle().' before migration by copying '.$path
                     .' to '.Fieldset::overriddenNamespacedFieldsetPath($definition->handle()));
             }
             throw new \RuntimeException('Publish the blueprint/fieldset before migration: '.$path);
         }
-        $raw = YAML::parse(file_get_contents($path));
-        $files['local:'.$path] = Journal::change(['path' => $path], YAML::dump(array_replace($raw, $after)));
+        if ($converted !== $raw) {
+            $files['local:'.$path] = Journal::change(['path' => $path], YAML::dump($converted));
+        }
         $definition->setContents($after);
     }
 

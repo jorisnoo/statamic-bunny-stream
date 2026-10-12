@@ -155,6 +155,14 @@ Statamic\Facades\Collection::make('films')->save();
 $film = Statamic\Facades\Entry::make()->collection('films')->slug('film')->data(['bunny_video' => $guid]);
 $film->save();
 $filmBefore = file_get_contents($film->path());
+// Legacy `sections:` blueprints keep their format, without fields Statamic only adds at runtime.
+Statamic\Facades\Collection::make('news')->dated(true)->save();
+$newsPath = Blueprint::directory().'/collections/news/story.yaml';
+@mkdir(dirname($newsPath), 0700, true);
+file_put_contents($newsPath, "title: Story\nsections:\n  main:\n    fields:\n      -\n        handle: clip\n        field:\n          type: bunny\n");
+Statamic\Facades\Blink::flush();
+$story = Statamic\Facades\Entry::make()->collection('news')->slug('story')->date('2026-01-01')->data(['clip' => $guid]);
+$story->save();
 $entryPath = $entry->path();
 $entryBefore = file_get_contents($entryPath);
 $fieldsetBefore = file_get_contents($fieldset->path());
@@ -174,6 +182,10 @@ check(str_contains(file_get_contents($entryPath), 'hero_clip: renamed.mp4'), 'pr
 check(str_contains(file_get_contents($revision->path()), 'hero_clip: renamed.mp4'), 'working copy migrated with its field definition');
 check(str_contains(file_get_contents($film->path()), 'bunny_video: renamed.mp4') && str_contains(file_get_contents($overridePath), 'bunny_stream_migrated'), 'entries using an overridden addon fieldset migrate');
 check(file_get_contents($addonFieldsets.'/bunny_video.yaml') === file_get_contents(__DIR__.'/../resources/fieldsets/bunny_video.yaml'), 'the addon fieldset itself is never rewritten');
+$storyYaml = Statamic\Facades\YAML::parse(file_get_contents($newsPath));
+check(isset($storyYaml['sections']) && ! isset($storyYaml['tabs']) && ($storyYaml['sections']['main']['fields'][0]['field']['type'] ?? null) === 'assets', 'legacy sections blueprints are converted in place');
+check(! str_contains(file_get_contents($newsPath), 'slug') && ! str_contains(file_get_contents($newsPath), 'date'), 'runtime-ensured fields are not written to blueprints');
+check(str_contains(file_get_contents($story->path()), 'clip: renamed.mp4'), 'entries of legacy blueprints migrate');
 check(str_contains(file_get_contents($term->path()), 'hero_clip: renamed.mp4'), 'taxonomy term migrated');
 check(str_contains(file_get_contents($variables->path()), 'hero_clip: renamed.mp4'), 'global variables migrated');
 check(str_contains(file_get_contents($contentUser->path()), 'hero_clip: renamed.mp4'), 'file-backed users migrated');
