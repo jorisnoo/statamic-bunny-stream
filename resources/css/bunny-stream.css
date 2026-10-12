@@ -1,5 +1,8 @@
 @import '@uppy/core/css/style.css';
 @import '@uppy/dashboard/css/style.css';
 
-@import "tailwindcss" prefix(tw);
+/* Theme and utilities only: the CP already ships its own preflight/base styles. */
+@layer theme, base, components, utilities;
+@import "tailwindcss/theme.css" layer(theme) prefix(tw);
+@import "tailwindcss/utilities.css" layer(utilities) prefix(tw);
 @source "../js/**/*.vue";

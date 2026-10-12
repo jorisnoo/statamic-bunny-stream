@@ -3,20 +3,8 @@
         <div class="tw:flex tw:items-center tw:justify-between tw:mb-4">
             <h3 class="tw:text-sm tw:font-semibold tw:text-gray-900 tw:dark:text-dark-100">{{ __('Chapters') }}</h3>
             <div class="tw:flex tw:gap-2">
-                <button
-                    class="btn-flat btn-sm"
-                    :disabled="isGenerating"
-                    @click="autoGenerate"
-                >
-                    {{ isGenerating ? __('Generating...') : __('Auto-generate') }}
-                </button>
-                <button
-                    class="btn-flat btn-sm"
-                    :disabled="isGenerating"
-                    @click="addChapter"
-                >
-                    {{ __('Add Chapter') }}
-                </button>
+                <Button size="sm" :text="__('Auto-generate')" :loading="isGenerating" :disabled="isGenerating" @click="autoGenerate" />
+                <Button size="sm" icon="plus" :text="__('Add Chapter')" :disabled="isGenerating" @click="addChapter" />
             </div>
         </div>
 
@@ -63,6 +51,8 @@
                     @input="emitChapters"
                 />
                 <button
+                    type="button"
+                    :aria-label="__('Remove chapter :title', { title: chapter.title || index + 1 })"
                     @click="removeChapter(index)"
                     class="tw:text-gray-400 tw:hover:text-red-500 tw:cursor-pointer tw:shrink-0"
                 >
@@ -76,10 +66,12 @@
 </template>
 
 <script>
+import { Button } from '@statamic/cms/ui';
 import { formatTime, parseTime } from '@/utils/time.js';
 import * as api from '@/utils/api.js';
 
 export default {
+    components: { Button },
     inject: ['bunnyEndpoint'],
     props: {
         chapters: {
@@ -96,6 +88,7 @@ export default {
         return {
             localChapters: this.toLocalChapters(this.chapters),
             isGenerating: false,
+            previousChapters: null,
             pollingInterval: null,
             pollCount: 0,
         };
@@ -166,15 +159,16 @@ export default {
         autoGenerate() {
             this.isGenerating = true;
             this.pollCount = 0;
+            // Existing chapters would otherwise count as "generated" on the first poll.
+            this.previousChapters = JSON.stringify(this.chapters || []);
 
             api.post(`${this.bunnyEndpoint}/${this.videoGuid}/transcribe`)
                 .then(() => {
                     this.startPolling();
                 })
                 .catch((error) => {
-                    console.error(error);
                     this.isGenerating = false;
-                    Statamic.$toast.error(__('Failed to start chapter generation.'));
+                    Statamic.$toast.error(error.message || __('Failed to start chapter generation.'));
                 });
         },
 
@@ -191,7 +185,7 @@ export default {
 
                 api.get(`${this.bunnyEndpoint}/${this.videoGuid}`)
                     .then((data) => {
-                        if (data.chapters && data.chapters.length > 0) {
+                        if (data.chapters && data.chapters.length > 0 && JSON.stringify(data.chapters) !== this.previousChapters) {
                             this.stopPolling();
                             this.isGenerating = false;
                             this.localChapters = this.toLocalChapters(data.chapters);

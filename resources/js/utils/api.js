@@ -8,7 +8,13 @@ function headers(extra = {}) {
 
 async function handle(response) {
     if (!response.ok) {
-        throw new Error(`Request failed with status ${response.status}`);
+        // Surface the server's message (e.g. validation or "remote deletion is disabled").
+        let message = `Request failed with status ${response.status}`;
+        try {
+            const body = await response.json();
+            message = Object.values(body.errors ?? {})[0]?.[0] || body.message || message;
+        } catch {}
+        throw new Error(message);
     }
 
     return response.status === 204 ? null : response.json();

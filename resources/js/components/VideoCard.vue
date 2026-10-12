@@ -1,15 +1,20 @@
 <template>
     <tr
-        :class="currentVideo.status >= 4 ? 'tw:cursor-pointer hover:tw:bg-gray-50 dark:hover:tw:bg-dark-400' : ''"
-        @click="currentVideo.status >= 4 && $emit('select', currentVideo)"
+        :class="ready ? 'tw:cursor-pointer tw:hover:bg-gray-50 tw:dark:hover:bg-dark-400' : ''"
+        @click="ready && $emit('select', currentVideo)"
     >
         <td>
             <div class="tw:flex tw:items-center tw:gap-2">
-                <template v-if="currentVideo.status >= 4">
-                    <img :src="thumbnailUrl" class="tw:size-16 tw:rounded tw:object-cover tw:shrink-0" />
-                    <span class="tw:text-sm tw:font-medium tw:truncate">
+                <template v-if="ready">
+                    <img :src="thumbnailUrl" alt="" class="tw:size-16 tw:rounded tw:object-cover tw:shrink-0" />
+                    <button type="button" class="tw:text-sm tw:font-medium tw:truncate tw:text-left tw:cursor-pointer" @click.stop="$emit('select', currentVideo)">
                         {{ currentVideo.title }}
-                    </span>
+                    </button>
+                </template>
+                <template v-else-if="failed">
+                    <div class="tw:size-16 tw:rounded tw:bg-red-100 tw:shrink-0" />
+                    <span class="tw:text-sm tw:font-medium tw:truncate">{{ currentVideo.title }}</span>
+                    <span class="tw:text-sm tw:text-red-600">{{ __('Encoding failed') }}</span>
                 </template>
                 <template v-else>
                     <div class="tw:size-16 tw:rounded tw:bg-gray-300 tw:dark:bg-dark-200 tw:flex tw:items-center tw:justify-center tw:shrink-0">
@@ -19,13 +24,13 @@
                         </svg>
                     </div>
                     <span class="tw:text-sm tw:text-gray-500">
-                        {{ __('Processing...') }} {{ currentVideo.encodeProgress * 2 }}%
+                        {{ __('Processing...') }} {{ currentVideo.encodeProgress ?? 0 }}%
                     </span>
                 </template>
             </div>
         </td>
         <td class="tw:hidden tw:md:table-cell">
-            <span v-if="currentVideo.status >= 4" class="tw:text-sm tw:text-gray-500">
+            <span v-if="ready || failed" class="tw:text-sm tw:text-gray-500">
                 {{ formatDate(currentVideo.dateUploaded) }}
             </span>
             <span v-else class="tw:text-sm tw:text-gray-500">
@@ -33,7 +38,7 @@
             </span>
         </td>
         <td class="actions-column tw:!pr-4">
-            <button @click.stop="confirmDeletion" class="tw:text-gray-500 tw:hover:text-red-500 tw:cursor-pointer">
+            <button type="button" :aria-label="__('Delete video :title', { title: currentVideo.title })" @click.stop="confirmDeletion" class="tw:text-gray-500 tw:hover:text-red-500 tw:cursor-pointer">
                 <svg class="tw:size-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
                 </svg>
@@ -71,13 +76,20 @@ export default {
         }
     },
     computed: {
+        // Bunny statuses: 4 finished, 7/8 just-in-time playback ready, 5/6 failed.
+        ready() {
+            return [4, 7, 8].includes(this.currentVideo.status);
+        },
+        failed() {
+            return [5, 6].includes(this.currentVideo.status);
+        },
         thumbnailUrl() {
             const base = `https://${this.bunnyHostname}/${this.currentVideo.guid}/${this.currentVideo.thumbnailFileName}`;
             return this.thumbnailCacheBuster ? `${base}?v=${this.thumbnailCacheBuster}` : base;
         },
     },
     mounted() {
-        if (this.currentVideo.status < 4) {
+        if (!this.ready && !this.failed) {
             this.polling = setInterval(() => {
                 this.loadVideo();
             }, 5000);
@@ -88,6 +100,7 @@ export default {
         });
     },
     beforeUnmount() {
+        clearInterval(this.polling);
         emitter.off(`thumbnail-updated:${this.currentVideo.guid}`);
     },
     methods: {
@@ -112,7 +125,7 @@ export default {
             api.get(`${this.bunnyEndpoint}/${this.currentVideo.guid}`)
                 .then((data) => {
                     this.currentVideo = data;
-                    if (this.currentVideo.status >= 4) {
+                    if (this.ready || this.failed) {
                         clearInterval(this.polling);
                         emitter.emit('load');
                     }
@@ -134,7 +147,8 @@ export default {
                     emitter.emit('load');
                 })
                 .catch((error) => {
-                    console.error(error);
+                    this.cancelDeletion();
+                    Statamic.$toast.error(error.message);
                 })
                 .finally(() => {
                     this.isLoading = false;

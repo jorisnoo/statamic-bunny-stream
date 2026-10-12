@@ -4,7 +4,7 @@
             ref="input"
             class="tw:flex-1"
             :clearable="true"
-            :disabled="false"
+            :disabled="isReadOnly"
             :options="options"
             :placeholder="__('Select video...')"
             :searchable="true"
@@ -26,13 +26,15 @@
 </template>
 
 <script setup>
-import { computed, ref, onMounted } from 'vue';
+import { computed, getCurrentInstance, ref, onMounted } from 'vue';
 import { Fieldtype } from '@statamic/cms';
 import { Combobox } from '@statamic/cms/ui';
 const emit = defineEmits(Fieldtype.emits);
 const props = defineProps(Fieldtype.props);
-const { defineReplicatorPreview, expose, update } = Fieldtype.use(emit, props);
+const { defineReplicatorPreview, expose, isReadOnly, update } = Fieldtype.use(emit, props);
 defineExpose(expose);
+// Statamic 6 exposes its configured axios (CSRF, session handling) only to components.
+const http = getCurrentInstance().appContext.config.globalProperties.$axios;
 
 // Sentinel for "no video selected". The combobox needs a real option value to
 // select, but we always store null.
@@ -91,13 +93,12 @@ function thumbnailUrl(guid) {
 }
 
 function getVideos() {
-    fetch(props.meta.listUrl)
-        .then((response) => response.json())
-        .then((items) => {
-            videos.value = Array.isArray(items) ? items : [];
+    http.get(props.meta.listUrl)
+        .then(({ data }) => {
+            videos.value = Array.isArray(data) ? data : [];
         })
         .catch((error) => {
-            console.error(error);
+            Statamic.$toast.error(error.response?.data?.message || __('Could not load videos.'));
         });
 }
 

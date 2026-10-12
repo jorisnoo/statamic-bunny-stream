@@ -18,11 +18,13 @@
                     <div>
                         <h3 class="tw:text-sm tw:font-semibold tw:text-gray-900 tw:dark:text-dark-100 tw:mb-2">{{ __('Thumbnail') }}</h3>
                         <div class="tw:relative tw:group">
-                            <img :src="currentThumbnailUrl" class="tw:w-full tw:rounded tw:object-cover tw:aspect-video" />
+                            <img :src="currentThumbnailUrl" :alt="__('Thumbnail')" class="tw:w-full tw:rounded tw:object-cover tw:aspect-video" />
                             <button
                                 v-if="!isUploadingThumbnail"
+                                type="button"
+                                :aria-label="__('Select new thumbnail')"
                                 @click.prevent="selectThumbnail"
-                                class="tw:absolute tw:inset-0 tw:flex tw:items-center tw:justify-center tw:bg-black/50 tw:rounded tw:opacity-0 tw:group-hover:opacity-100 tw:transition-opacity tw:cursor-pointer"
+                                class="tw:absolute tw:inset-0 tw:flex tw:items-center tw:justify-center tw:bg-black/50 tw:rounded tw:opacity-0 tw:group-hover:opacity-100 tw:focus-visible:opacity-100 tw:transition-opacity tw:cursor-pointer"
                             >
                                 <svg class="tw:size-8 tw:text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909M3.75 21h16.5A2.25 2.25 0 0 0 22.5 18.75V5.25A2.25 2.25 0 0 0 20.25 3H3.75A2.25 2.25 0 0 0 1.5 5.25v13.5A2.25 2.25 0 0 0 3.75 21Z" />
@@ -49,12 +51,9 @@
 
                     <!-- Title -->
                     <div>
-                        <h3 class="tw:text-sm tw:font-semibold tw:text-gray-900 tw:dark:text-dark-100 tw:mb-2">{{ __('Title') }}</h3>
-                        <input
-                            v-model="editableTitle"
-                            type="text"
-                            class="tw:w-full tw:text-sm tw:border tw:border-gray-300 tw:dark:border-dark-200 tw:rounded tw:px-3 tw:py-2 tw:bg-white tw:dark:bg-dark-500"
-                        />
+                        <Field :label="__('Title')">
+                            <Input v-model="editableTitle" />
+                        </Field>
                     </div>
 
                     <!-- Video Info -->
@@ -75,13 +74,7 @@
 
                     <!-- Save -->
                     <div class="tw:flex tw:justify-end tw:pt-2 tw:border-t tw:border-gray-200 tw:dark:border-dark-200">
-                        <button
-                            class="btn-primary"
-                            :disabled="isSaving"
-                            @click="save"
-                        >
-                            {{ isSaving ? __('Saving...') : __('Save') }}
-                        </button>
+                        <Button variant="primary" :text="__('Save')" :loading="isSaving" :disabled="isSaving" @click="save" />
                     </div>
                 </template>
             </div>
@@ -91,12 +84,13 @@
 
 <script>
 import ChapterEditor from './ChapterEditor.vue';
+import { Button, Field, Input } from '@statamic/cms/ui';
 import { formatTime } from '@/utils/time.js';
 import { emitter } from '@/utils/emitter.js';
 import * as api from '@/utils/api.js';
 
 export default {
-    components: { ChapterEditor },
+    components: { ChapterEditor, Button, Field, Input },
     inject: ['bunnyEndpoint', 'bunnyHostname', 'bunnyChaptersEnabled'],
     props: {
         video: {
@@ -136,12 +130,16 @@ export default {
         },
     },
     watch: {
-        open(newVal) {
-            if (newVal) {
-                this.fetchVideo();
-            } else {
-                this.fullVideo = null;
-            }
+        open: {
+            // The stack is mounted already open, so this has to run immediately.
+            immediate: true,
+            handler(newVal) {
+                if (newVal) {
+                    this.fetchVideo();
+                } else {
+                    this.fullVideo = null;
+                }
+            },
         },
     },
     methods: {
@@ -175,8 +173,7 @@ export default {
                     this.$emit('updated');
                 })
                 .catch((error) => {
-                    console.error(error);
-                    Statamic.$toast.error(__('Failed to save video.'));
+                    Statamic.$toast.error(error.message || __('Failed to save video.'));
                 })
                 .finally(() => {
                     this.isSaving = false;
