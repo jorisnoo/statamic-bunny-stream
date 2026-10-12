@@ -3,6 +3,8 @@
 namespace Noo\BunnyStream;
 
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Gate;
+use Statamic\Facades\User;
 use Statamic\Facades\CP\Nav;
 use Statamic\Facades\Permission;
 use Statamic\Providers\AddonServiceProvider;
@@ -50,10 +52,23 @@ class ServiceProvider extends AddonServiceProvider
         return $this;
     }
 
+    public static function registerGates(): void
+    {
+        // The legacy picker lists the whole library; limit it to people who can edit something.
+        Gate::define('use bunny fieldtype', function ($user) {
+            $user = User::fromUser($user);
+
+            return $user && ($user->isSuper() || $user->hasPermission('manage bunny videos')
+                || collect($user->permissions())->contains(fn ($permission) => str_starts_with($permission, 'edit ')));
+        });
+    }
+
     public function bootAddon(): void
     {
+        static::registerGates();
+
         Permission::extend(function () {
-            Permission::group('bunny-stream', 'Bunny Stream', function () {
+            Permission::group('bunny-stream', __('Bunny Stream'), function () {
                 Permission::register('manage bunny videos')
                     ->label(__('Manage Bunny videos'));
             });

@@ -413,4 +413,26 @@ $clear = Illuminate\Http\Request::create('/bunny/asset-stream', 'POST', [], [], 
 $clear->setUserResolver(fn () => $admin);
 $controller($clear, new BunnyClient);
 check($sent[0] === ['POST', ['chapters' => []]], 'saving an empty chapter list clears chapters');
+// The legacy picker sees every page of the library and never caches a failed listing.
+$pages = new class extends BunnyClient {
+    public int $calls = 0;
+    public bool $fail = true;
+    public function __construct() {}
+    public function videos(int $page = 1, int $perPage = 100, ?string $search = null): array {
+        $this->calls++;
+        if ($this->fail) { throw new RuntimeException('Bunny unavailable'); }
+        return ['totalItems' => 150, 'items' => array_map(fn ($i) => ['guid' => (string) $i], range(($page - 1) * 100, min($page * 100, 150) - 1))];
+    }
+};
+$repository = new Noo\BunnyStream\Repositories\VideoRepository($pages);
+$repository->forget();
+check($repository->fetchAll() === [], 'a failed listing returns nothing');
+$pages->fail = false;
+check(count($repository->fetchAll()) === 150, 'listing is retried after a failure and includes every page');
+// Only people who can edit content may browse the library from the legacy picker.
+Noo\BunnyStream\ServiceProvider::registerGates();
+Statamic\Facades\Role::make('writer')->title('Writer')->permissions(['access cp', 'edit articles entries'])->save();
+$writer = Statamic\Facades\User::make()->email('writer@example.test')->assignRole('writer');
+$writer->save();
+check(Illuminate\Support\Facades\Gate::forUser($writer)->allows('use bunny fieldtype') && Illuminate\Support\Facades\Gate::forUser($viewer)->denies('use bunny fieldtype'), 'legacy picker requires an editing permission');
 echo "All checks passed.\n";

@@ -36,7 +36,7 @@ class Subscriber
         $events->listen(Events\AssetContainerBlueprintFound::class, function ($e) {
             if (in_array($e->container?->handle(), config('statamic.bunny-stream.asset_containers', []), true)) {
                 $e->blueprint->ensureField('bunny_stream', [
-                    'type' => 'bunny_stream', 'display' => 'Bunny Stream', 'listable' => false,
+                    'type' => 'bunny_stream', 'display' => __('Bunny Stream'), 'listable' => false,
                 ]);
             }
         });

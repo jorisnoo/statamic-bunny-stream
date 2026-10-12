@@ -6,9 +6,11 @@ use Noo\BunnyStream\Http\Controllers\Cp\Thumbnail;
 use Noo\BunnyStream\Http\Controllers\Cp\VideoList;
 use Noo\BunnyStream\Http\Controllers\Cp\VideosController;
 
-// Fieldtype support, available to any CP user who can edit entries.
-Route::get('/bunny/videos/list', VideoList::class)->name('bunny.cp.videoList');
-Route::get('/bunny/thumbnail/{guid}', Thumbnail::class)->whereUuid('guid')->name('bunny.cp.thumbnail');
+// Fieldtype support, available to CP users who can edit content.
+Route::middleware('can:use bunny fieldtype')->group(function () {
+    Route::get('/bunny/videos/list', VideoList::class)->name('bunny.cp.videoList');
+    Route::get('/bunny/thumbnail/{guid}', Thumbnail::class)->whereUuid('guid')->name('bunny.cp.thumbnail');
+});
 
 // Media browser, gated behind its own permission.
 Route::middleware('can:manage bunny videos')->name('bunny.cp.')->group(function () {

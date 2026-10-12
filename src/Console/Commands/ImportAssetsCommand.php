@@ -42,6 +42,10 @@ class ImportAssetsCommand extends Command
                 foreach (array_unique(array_merge($data['legacy_guids'] ?? [], [$data['guid']])) as $guid) {
                     if (isset($existing[$guid])) { throw new \RuntimeException('Duplicate assets for GUID '.$guid); }
                     $existing[$guid] = $asset;
+                    if ($asset->get('bunny_stream')['state'] === 'remote_unready') {
+                        // Still encoding in Bunny: poll until it is ready.
+                        try { Streams::dispatch($asset); } catch (\RuntimeException $e) { $this->warn($guid.': '.$e->getMessage().' Use Retry sync once the queue runs.'); }
+                    }
                 }
             }
         }
@@ -69,9 +73,18 @@ class ImportAssetsCommand extends Command
                 try {
                     $source = $bunny->downloadSource($guid, $temp, $video);
                     $mime = (new \finfo(FILEINFO_MIME_TYPE))->file($temp);
+                    // Only formats Statamic treats as video, so the asset editor shows the stream.
                     $extensions = ['video/mp4' => 'mp4', 'video/quicktime' => 'mov', 'video/webm' => 'webm',
-                        'video/x-matroska' => 'mkv', 'video/x-msvideo' => 'avi', 'video/mpeg' => 'mpeg', 'video/x-ms-wmv' => 'wmv'];
-                    if (! filesize($temp) || ! isset($extensions[$mime])) { throw new \RuntimeException('Download is not a recognized video file.'); }
+                        'video/x-matroska' => 'mkv', 'video/mpeg' => 'mpeg'];
+                    if ($source === 'original' && ! isset($extensions[$mime])) {
+                        // e.g. an AVI or WMV original: keep Bunny's MP4 rendition instead.
+                        $bunny->download($guid, $temp, $video);
+                        $source = 'derivative';
+                        $mime = (new \finfo(FILEINFO_MIME_TYPE))->file($temp);
+                    }
+                    if (! filesize($temp) || ! isset($extensions[$mime])) {
+                        throw new \RuntimeException('Download is not a supported video file ('.$mime.'). Statamic recognizes '.implode(', ', \Statamic\Assets\Asset::VIDEO_EXTENSIONS).'.');
+                    }
                     $analysis = (new \getID3)->analyze($temp);
                     if (! empty($analysis['error']) || empty($analysis['video']['resolution_x']) || empty($analysis['playtime_seconds'])) {
                         throw new \RuntimeException('The downloaded video is corrupt or cannot be inspected.');
