@@ -40,12 +40,6 @@ class Bunny extends Fieldtype
             return null;
         }
 
-        return new BunnyVideo(
-            guid: $value,
-            hostname: config('statamic.bunny-stream.hostname'),
-            libraryId: config('statamic.bunny-stream.library_id'),
-            tokenKey: config('statamic.bunny-stream.token_key'),
-            tokenExpiry: config('statamic.bunny-stream.token_expiry', 24),
-        );
+        return BunnyVideo::make($value);
     }
 }

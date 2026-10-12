@@ -6,6 +6,7 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Cache;
 use Noo\BunnyStream\Assets\Streams;
 use Noo\BunnyStream\Migration\Definitions;
+use Noo\BunnyStream\Migration\FieldsetOverlay;
 use Noo\BunnyStream\Migration\Journal;
 use Noo\BunnyStream\Migration\References;
 use Statamic\Contracts\Assets\Asset as AssetContract;
@@ -51,6 +52,16 @@ class MigrateFieldsCommand extends Command
 
     private function prepare(): ?string
     {
+        $overlay = FieldsetOverlay::install();
+        try {
+            return $this->prepareBatch($overlay);
+        } finally {
+            $overlay->uninstall();
+        }
+    }
+
+    private function prepareBatch(FieldsetOverlay $overlay): ?string
+    {
         $handles = $this->option('field');
         if (! $handles) { throw new \RuntimeException('Select --field=handle (all uses of that handle), or --field=\'*\'.'); }
         $containers = config('statamic.bunny-stream.asset_containers', []);
@@ -78,6 +89,7 @@ class MigrateFieldsCommand extends Command
         foreach (Fieldset::all() as $fieldset) {
             $fieldset = Fieldset::find($fieldset->handle());
             $this->definition($fieldset, $handles, $container, $library, $files);
+            $overlay->remember($fieldset);
         }
         foreach ($blueprints as $blueprint) {
             $this->definition($blueprint, $handles, $container, $library, $files);
@@ -125,6 +137,10 @@ class MigrateFieldsCommand extends Command
         if ($after === $before) { return; }
         $path = $definition->initialPath() ?: $definition->path();
         if (! is_file($path) || str_starts_with(realpath($path) ?: $path, realpath(base_path('vendor')).'/')) {
+            if ($definition instanceof \Statamic\Fields\Fieldset && $definition->isNamespaced()) {
+                throw new \RuntimeException('Override the addon fieldset '.$definition->handle().' before migration by copying '.$path
+                    .' to '.Fieldset::overriddenNamespacedFieldsetPath($definition->handle()));
+            }
             throw new \RuntimeException('Publish the blueprint/fieldset before migration: '.$path);
         }
         $raw = YAML::parse(file_get_contents($path));

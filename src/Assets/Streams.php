@@ -113,8 +113,6 @@ class Streams
         if (empty($data['guid'])) {
             return null;
         }
-        return new BunnyVideo($data['guid'], config('statamic.bunny-stream.hostname'), $data['library_id'],
-            config('statamic.bunny-stream.token_key'), config('statamic.bunny-stream.token_expiry', 24),
-            $data['metadata']['thumbnailFileName'] ?? 'thumbnail.jpg');
+        return BunnyVideo::make($data['guid'], $data['library_id'] ?? null, $data['metadata']['thumbnailFileName'] ?? 'thumbnail.jpg');
     }
 }

@@ -142,23 +142,38 @@ Statamic\Facades\Blink::forget('asset-container-blueprint-videos');
 $metadataAsset = Asset::find('videos::renamed.mp4');
 Statamic\Facades\Blink::forget('asset-videos::renamed.mp4-blueprint');
 $metadataAsset->set('hero_clip', $guid)->save();
+// The addon's bundled fieldset migrates through Statamic's override location.
+$addonFieldsets = $root.'/addon/resources/fieldsets';
+mkdir($addonFieldsets, 0700, true);
+copy(__DIR__.'/../resources/fieldsets/bunny_video.yaml', $addonFieldsets.'/bunny_video.yaml');
+Statamic\Facades\Fieldset::addNamespace('statamic-bunny-stream', $addonFieldsets);
+$overridePath = Statamic\Facades\Fieldset::overriddenNamespacedFieldsetPath('statamic-bunny-stream::bunny_video');
+mkdir(dirname($overridePath), 0700, true);
+copy($addonFieldsets.'/bunny_video.yaml', $overridePath);
+Blueprint::make('film')->setNamespace('collections.films')->setContents(['tabs' => ['main' => ['sections' => [['fields' => [['import' => 'statamic-bunny-stream::bunny_video']]]]]]])->save();
+Statamic\Facades\Collection::make('films')->save();
+$film = Statamic\Facades\Entry::make()->collection('films')->slug('film')->data(['bunny_video' => $guid]);
+$film->save();
+$filmBefore = file_get_contents($film->path());
 $entryPath = $entry->path();
 $entryBefore = file_get_contents($entryPath);
 $fieldsetBefore = file_get_contents($fieldset->path());
 $kernel = $app->make(Illuminate\Contracts\Console\Kernel::class);
 $kernel->registerCommand(new Noo\BunnyStream\Console\Commands\MigrateFieldsCommand);
 $kernel->registerCommand(new Noo\BunnyStream\Console\Commands\RollbackCommand);
-$result = $kernel->call('bunny-stream:migrate-fields', ['--dry-run' => true, '--field' => ['clip']]);
+$result = $kernel->call('bunny-stream:migrate-fields', ['--dry-run' => true, '--field' => ['clip', 'bunny_video']]);
 check($result === 0, 'migration dry run succeeds: '.$kernel->output());
 check(file_get_contents($entryPath) === $entryBefore && file_get_contents($fieldset->path()) === $fieldsetBefore, 'dry run leaves content and definitions untouched');
 // Reboot blueprint/fieldset memory just as a separate artisan invocation would.
 Statamic\Facades\Fieldset::find('shared')->setContents(Statamic\Facades\YAML::parse($fieldsetBefore));
 $blueprint->setContents(Statamic\Facades\YAML::parse(file_get_contents($blueprint->path())));
 $app->maintenanceMode()->activate([]);
-$result = $kernel->call('bunny-stream:migrate-fields', ['--field' => ['clip']]);
+$result = $kernel->call('bunny-stream:migrate-fields', ['--field' => ['clip', 'bunny_video']]);
 check($result === 0, 'migration applies complete shared field batch: '.$kernel->output());
 check(str_contains(file_get_contents($entryPath), 'hero_clip: renamed.mp4'), 'prefixed shared field value migrated');
 check(str_contains(file_get_contents($revision->path()), 'hero_clip: renamed.mp4'), 'working copy migrated with its field definition');
+check(str_contains(file_get_contents($film->path()), 'bunny_video: renamed.mp4') && str_contains(file_get_contents($overridePath), 'bunny_stream_migrated'), 'entries using an overridden addon fieldset migrate');
+check(file_get_contents($addonFieldsets.'/bunny_video.yaml') === file_get_contents(__DIR__.'/../resources/fieldsets/bunny_video.yaml'), 'the addon fieldset itself is never rewritten');
 check(str_contains(file_get_contents($term->path()), 'hero_clip: renamed.mp4'), 'taxonomy term migrated');
 check(str_contains(file_get_contents($variables->path()), 'hero_clip: renamed.mp4'), 'global variables migrated');
 check(str_contains(file_get_contents($contentUser->path()), 'hero_clip: renamed.mp4'), 'file-backed users migrated');
@@ -181,6 +196,7 @@ $run = basename(end($runs), '.json');
 $result = $kernel->call('bunny-stream:rollback', ['run' => $run]);
 check($result === 0 && file_get_contents($entryPath) === $entryBefore, 'command rollback restores entry');
 check(file_get_contents($fieldset->path()) === $fieldsetBefore, 'command rollback restores shared fieldset');
+check(file_get_contents($film->path()) === $filmBefore && file_get_contents($overridePath) === file_get_contents($addonFieldsets.'/bunny_video.yaml'), 'command rollback restores the fieldset override and its entries');
 
 
 // Import the original when present and a derivative when it is not.
@@ -219,6 +235,19 @@ $stream = $imported->augmentedValue('bunny_stream')->value();
 check(str_contains($stream->embedUrl(), 'token=') && str_contains($stream->embed(), $importGuid), 'asset augmentation uses signed BunnyVideo playback');
 $antlers = (string) Statamic\Facades\Antlers::parse('{{ video:bunny_stream:embed }}', ['video' => $imported]);
 check(str_contains($antlers, '<iframe') && str_contains($antlers, $importGuid), 'Antlers streams through a native asset');
+// One template works before and after migration.
+Noo\BunnyStream\Modifiers\BunnyStream::register();
+$legacyValue = new Statamic\Fields\Value($importGuid, 'video', new Noo\BunnyStream\Fieldtypes\Bunny);
+// Template files, unlike Antlers::parse() content, may use any registered modifier.
+@mkdir($root.'/resources/views', 0700, true);
+file_put_contents($root.'/resources/views/stream.antlers.html', '{{ stream = video | bunny_stream }}{{ if stream }}{{ stream:embed }}{{ else }}none{{ /if }}');
+check(view('stream', ['video' => null])->render() === 'none', 'bunny_stream modifier tolerates empty fields');
+foreach (['GUID' => $importGuid, 'legacy field' => $legacyValue, 'asset' => $imported] as $label => $value) {
+    $output = view('stream', ['video' => $value])->render();
+    check(str_contains($output, '<iframe') && str_contains($output, $importGuid), 'bunny_stream modifier resolves a '.$label.': '.$output);
+    check(Noo\BunnyStream\Data\BunnyVideo::from($value)?->guid() === $importGuid, 'BunnyVideo::from resolves a '.$label);
+}
+check(Noo\BunnyStream\Data\BunnyVideo::from(null) === null && Noo\BunnyStream\Data\BunnyVideo::from('not-a-guid') === null, 'BunnyVideo::from ignores empty values');
 $before = $imported->get('bunny_stream');
 $imported->set('bunny_stream', ['guid' => 'forged'])->save();
 check(Asset::find($imported->id())->get('bunny_stream') === $before, 'ordinary asset saves cannot forge stream metadata');
