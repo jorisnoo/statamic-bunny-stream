@@ -1,6 +1,6 @@
 # Video Stream GDPR Compliant (aka Bunny Stream)
 
-> **Fork Notice:** This is a fork of [laborb/statamic-bunny-stream](https://github.com/niclasleonbock/statamic-bunny-stream) upgraded for **Statamic 6** and **Laravel 12**. Vue 2 components have been migrated to Vue 3. Public-facing frontend features (Antlers tags, frontend views) have been removed — this is now a **CP-only addon** for video management, the Bunny fieldtype, and uploads.
+> **Fork Notice:** This is a fork of [laborb/statamic-bunny-stream](https://github.com/niclasleonbock/statamic-bunny-stream) upgraded for **Statamic 6** and **Laravel 12**. Vue 2 components have been migrated to Vue 3. Public-facing frontend features (Antlers tags, frontend views) have been removed — the addon supports native Statamic Assets, legacy Bunny fields, and streaming playback helpers.
 
 Bunny Stream is a Statamic addon that integrates the Bunny Stream API for single stream libraries into the Statamic CP.
 
@@ -77,7 +77,7 @@ This addon provides a Bunny fieldtype that you can add to any blueprint. It also
 
 Use the video browser in the Control Panel (under the Bunny Stream navigation item) to upload, browse, and manage your videos.
 
-Access to the video browser requires the `Manage Bunny videos` permission (super admins always have it). Assign it to a role under Users > Roles in the Bunny Stream permission group.
+Access to the video browser requires the `Manage Bunny videos` permission (super admins always have it). Assign it to a role under Users > Roles in the Bunny Stream permission group. The Bunny field's video picker is available to users with that permission or any editing permission (for example `edit articles entries`).
 
 ### Frontend Templates
 
@@ -165,3 +165,85 @@ services.
 ## Issues
 
 If you find any bugs or have feature requests, please [open an issue](https://github.com/jorisnoo/statamic-bunny-stream/issues) on GitHub.
+
+## Native Assets workflow
+
+Enable existing asset containers in `config/statamic/bunny-stream.php`:
+
+```php
+'asset_containers' => ['videos'],
+'queue' => 'default',
+'delete_remote' => false,
+'show_dashboard' => true,
+```
+
+Editors upload originals to these containers and select them with ordinary Assets fields in entries, Bard, and Replicator. Video uploads queue a transfer to Bunny. The asset editor automatically gains a **Bunny Stream** field with status, encoding progress, retry, custom thumbnails, and the optional chapter tools. Its poster opens the full Bunny player, with chapter shortcuts.
+
+Streamed videos use their Bunny thumbnail in the asset browser and in Assets fields, without needing ffmpeg. Assets fields that contain streamed videos also get a **Play video** action, which opens the player (with a playlist when the field holds several videos) without leaving the entry. The legacy Bunny field shows a playable preview of the selected video as well. Images and other files are unaffected. Metadata is managed by the integration; editing the form cannot replace remote GUIDs.
+
+Use a persistent Laravel queue connection, such as database or Redis. The configured `queue` is a queue **name**, not a connection. Run its workers continuously. Upload jobs allow one hour; set the connection's `retry_after` (or SQS visibility timeout) above 3660 seconds and the worker timeout to 3600 seconds. After upload, the job checks Bunny's encoding status once a minute for up to 12 hours. Queue failures remain visible in the asset editor and Laravel's failed-job tooling. The CP status display polls for up to ten minutes; refresh to continue monitoring long encodes.
+
+Configure PHP, your web server/proxy, and Statamic's upload limits for the largest original you expect. Back up both the asset disk and its `.meta` files. Originals inherit the disk's access policy; use a private disk when originals must not be publicly downloadable. Bunny iframe signing does not change asset-disk visibility.
+
+Reuploads retain the previous stream until the replacement is ready. Renames retain stream identity. Once `asset_containers` is set, remote cleanup is queued, retryable, and disabled by default, including the legacy dashboard's delete endpoint. With no asset containers configured, the dashboard deletes immediately as before. Enable it only after every consumer of the library has migrated. A delete job refuses to remove a GUID still owned by another asset. Turning cleanup on does not retroactively delete videos retained while it was off.
+
+**Keeping asset data safe.** Statamic 6 can erase an asset's custom data when it lists an asset whose stored width, height or duration is empty. That data includes alt text, title and the Bunny stream record. It happens, for example, with a WebM recording that has no duration header. The addon swaps in a subclass of Statamic's asset class that loads the data before metadata is regenerated. It only does this when the site uses Statamic's default asset class; a custom asset class or the Eloquent driver is left untouched.
+
+Stream records are written by queue workers on the server, so treat the `.meta` files of video containers as server-owned and don't overwrite them from Git on deploy. If a record is lost anyway, don't click **Retry sync**, which uploads a new copy. Instead run:
+
+```bash
+php artisan bunny-stream:repair          # lists the Bunny videos it can match
+php artisan bunny-stream:repair --apply  # restores those records
+```
+
+It only restores certain matches: the import path, or the `[generation]` suffix the sync job adds to each video title. It reports anything ambiguous.
+
+If creating a remote video is interrupted before its GUID is saved, retries deliberately stop to avoid creating duplicates. Find the remote video with the generation identifier shown in its Bunny title, then use **Attach and retry** in the asset editor. If no such video exists, investigate the failed request before restarting that upload.
+
+### Streaming in templates
+
+Keep the native asset `url` for the stored source. The asset's `bunny_stream` field augments to the same `BunnyVideo` helper as the legacy field:
+
+```antlers
+{{ video:bunny_stream:embed }}
+{{ video:bunny_stream:url }}
+{{ video:bunny_stream:thumbnail }}
+```
+
+```blade
+@php($stream = $video->augmentedValue('bunny_stream')->value())
+@if ($stream)
+    {!! $stream->embed() !!}
+@endif
+```
+
+To write templates that work both before and after migrating a legacy `bunny` field, use the `bunny_stream` modifier, or `BunnyVideo::from()` in Blade. Each accepts either a legacy value or an asset:
+
+```antlers
+{{ stream = video | bunny_stream }}
+{{ if stream }}{{ stream:embed }}{{ /if }}
+```
+
+These examples assume a single Assets field (`max_files: 1`). Loop through multi-asset fields as usual. Before the first upload is ready, `bunny_stream` is null; after a replacement starts, it continues to expose the previous stream. Existing `bunny` fields and their templates continue to work throughout migration.
+
+## Migrating existing content
+
+Moving a site from legacy `bunny` fields to assets takes two steps:
+
+1. `bunny-stream:import-assets` imports the Bunny library as assets while the site stays live.
+2. `bunny-stream:migrate-fields` converts fields and content in a short maintenance window. It is journaled, so it can be resumed or rolled back.
+
+Nothing changes until you run them. **Follow the step-by-step guide in [MIGRATION.md](MIGRATION.md).** It covers Bunny settings, queue setup, template changes, a dry run, verification, rollback and troubleshooting.
+
+### Development checks
+
+```bash
+php tests/run.php
+npm run build
+```
+
+The standalone checks boot the installed Laravel/Statamic runtime in a temporary directory and use fake queues/HTTP. The small video fixture is generated media; no external Bunny account is needed.
+
+## Maintainer releases
+
+See [RELEASING.md](RELEASING.md) for versioning, changelog entries and the release command.

@@ -2,13 +2,17 @@
 
 use Illuminate\Support\Facades\Route;
 use Noo\BunnyStream\Http\Controllers\Cp\Overview;
+use Noo\BunnyStream\Http\Controllers\Cp\Preview;
 use Noo\BunnyStream\Http\Controllers\Cp\Thumbnail;
 use Noo\BunnyStream\Http\Controllers\Cp\VideoList;
 use Noo\BunnyStream\Http\Controllers\Cp\VideosController;
 
-// Fieldtype support, available to any CP user who can edit entries.
-Route::get('/bunny/videos/list', VideoList::class)->name('bunny.cp.videoList');
-Route::get('/bunny/thumbnail/{guid}', Thumbnail::class)->whereUuid('guid')->name('bunny.cp.thumbnail');
+// Fieldtype support, available to CP users who can edit content.
+Route::middleware('can:use bunny fieldtype')->group(function () {
+    Route::get('/bunny/videos/list', VideoList::class)->name('bunny.cp.videoList');
+    Route::get('/bunny/thumbnail/{guid}', Thumbnail::class)->whereUuid('guid')->name('bunny.cp.thumbnail');
+    Route::get('/bunny/preview/{guid}', Preview::class)->whereUuid('guid')->name('bunny.cp.preview');
+});
 
 // Media browser, gated behind its own permission.
 Route::middleware('can:manage bunny videos')->name('bunny.cp.')->group(function () {
@@ -24,3 +28,5 @@ Route::middleware('can:manage bunny videos')->name('bunny.cp.')->group(function 
         Route::post('/{guid}/transcribe', [VideosController::class, 'transcribe'])->name('transcribe');
     });
 });
+
+Route::match(['get', 'post'], '/bunny/asset-stream', \Noo\BunnyStream\Http\Controllers\Cp\AssetStreamController::class)->name('bunny.cp.asset');

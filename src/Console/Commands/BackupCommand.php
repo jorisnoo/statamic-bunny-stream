@@ -38,7 +38,8 @@ class BackupCommand extends Command
             return self::FAILURE;
         }
 
-        $readyVideos = array_filter($videos, fn (array $video) => ($video['status'] ?? 0) >= 4);
+        // Finished videos only; 5 and 6 are failed uploads/encodes with nothing to download.
+        $readyVideos = array_filter($videos, fn (array $video) => in_array((int) ($video['status'] ?? -1), [4, 8], true));
 
         $this->info(sprintf('Found %d videos (%d ready).', count($videos), count($readyVideos)));
 
@@ -86,7 +87,8 @@ class BackupCommand extends Command
         $cleaned = 0;
 
         if ($this->option('cleanup')) {
-            $cleaned = $this->cleanup($storage, $readyVideos);
+            // Compare against every remote video, so backups of videos being re-encoded survive.
+            $cleaned = $this->cleanup($storage, $videos);
         }
 
         $this->info(sprintf(
@@ -130,7 +132,8 @@ class BackupCommand extends Command
         $tempPath = tempnam(sys_get_temp_dir(), 'bunny_backup_');
 
         try {
-            $bunny->download($guid, $tempPath);
+            // Prefer the uploaded original; a rendition is only a fallback.
+            $bunny->downloadSource($guid, $tempPath, $video);
 
             $stream = fopen($tempPath, 'r');
             $storage->writeStream("bunny-stream/{$guid}.mp4", $stream);

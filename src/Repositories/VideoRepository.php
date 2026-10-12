@@ -14,15 +14,24 @@ class VideoRepository
 
     public function fetchAll(): array
     {
-        return Cache::remember('bunny:all', now()->addHour(), function () {
-            try {
-                return $this->client->videos()['items'] ?? [];
-            } catch (\Throwable $e) {
-                Log::error($e->getMessage());
+        try {
+            // Throwing inside the callback keeps a failed request out of the cache.
+            return Cache::remember('bunny:all', now()->addHour(), function () {
+                $videos = [];
+                for ($page = 1; ; $page++) {
+                    $response = $this->client->videos($page);
+                    $items = $response['items'] ?? [];
+                    $videos = array_merge($videos, $items);
+                    if (! $items || count($videos) >= ($response['totalItems'] ?? 0)) {
+                        return $videos;
+                    }
+                }
+            });
+        } catch (\Throwable $e) {
+            Log::error($e->getMessage());
 
-                return [];
-            }
-        });
+            return [];
+        }
     }
 
     public function fetch(string $guid): ?array

@@ -3,6 +3,8 @@
 namespace Noo\BunnyStream;
 
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Gate;
+use Statamic\Facades\User;
 use Statamic\Facades\CP\Nav;
 use Statamic\Facades\Permission;
 use Statamic\Providers\AddonServiceProvider;
@@ -15,6 +17,10 @@ class ServiceProvider extends AddonServiceProvider
     protected $commands = [
         Console\Commands\CleanupCommand::class,
         Console\Commands\BackupCommand::class,
+        Console\Commands\ImportAssetsCommand::class,
+        Console\Commands\MigrateFieldsCommand::class,
+        Console\Commands\RollbackCommand::class,
+        Console\Commands\RepairCommand::class,
     ];
 
     protected $vite = [
@@ -47,16 +53,75 @@ class ServiceProvider extends AddonServiceProvider
         return $this;
     }
 
+    public static function registerGates(): void
+    {
+        // The legacy picker lists the whole library; limit it to people who can edit something.
+        Gate::define('use bunny fieldtype', function ($user) {
+            $user = User::fromUser($user);
+
+            return $user && ($user->isSuper() || $user->hasPermission('manage bunny videos')
+                || collect($user->permissions())->contains(fn ($permission) => str_starts_with($permission, 'edit ')));
+        });
+    }
+
+    public static function registerAssetHooks(): void
+    {
+        // Show Bunny's (custom) thumbnail for streamed videos in the asset browser,
+        // Assets field tiles and the asset editor, without needing ffmpeg.
+        $hook = function ($payload, $next) {
+            $asset = $this->resource;
+            if ($asset instanceof \Statamic\Contracts\Assets\Asset && Assets\Streams::enabled($asset)) {
+                $video = Assets\Streams::video($asset->get('bunny_stream'));
+                if ($video) {
+                    $payload->data->thumbnail = $video->thumbnail();
+                }
+                // Lets the "Play video" field action find streams among an Assets field's selection.
+                $payload->data->bunny_stream = [
+                    'playable' => (bool) $video,
+                    'state' => $asset->get('bunny_stream')['state'] ?? 'not_synced',
+                    'endpoint' => cp_route('bunny.cp.asset'),
+                ];
+            }
+
+            return $next($payload);
+        };
+        foreach ([\Statamic\Http\Resources\CP\Assets\Asset::class, \Statamic\Http\Resources\CP\Assets\FolderAsset::class,
+            \Statamic\Http\Resources\CP\Assets\AssetsFieldtypeAsset::class] as $resource) {
+            $resource::hook('asset', $hook);
+        }
+    }
+
+    public static function protectAssetMetadata(): void
+    {
+        // Only replace Statamic's own class; other asset drivers (e.g. Eloquent) keep theirs.
+        if (get_class(app(\Statamic\Contracts\Assets\Asset::class)) !== \Statamic\Assets\Asset::class) {
+            return;
+        }
+        app()->bind(\Statamic\Contracts\Assets\Asset::class, Assets\SafeAsset::class);
+
+        // Sites that restrict cached classes must still be able to unserialize these assets.
+        if (is_array($classes = config('cache.serializable_classes'))) {
+            config(['cache.serializable_classes' => array_merge($classes, [Assets\SafeAsset::class])]);
+        }
+    }
+
     public function bootAddon(): void
     {
+        static::protectAssetMetadata();
+        static::registerGates();
+        static::registerAssetHooks();
+
         Permission::extend(function () {
-            Permission::group('bunny-stream', 'Bunny Stream', function () {
+            Permission::group('bunny-stream', __('Bunny Stream'), function () {
                 Permission::register('manage bunny videos')
                     ->label(__('Manage Bunny videos'));
             });
         });
 
         Nav::extend(function ($nav) {
+            if (! config('statamic.bunny-stream.show_dashboard', true)) {
+                return;
+            }
             $nav->content(__('Media Browser'))
                 ->section('Content')
                 ->route('bunny.cp.videoBrowser')
@@ -65,6 +130,9 @@ class ServiceProvider extends AddonServiceProvider
         });
 
         Fieldtypes\Bunny::register();
+        Fieldtypes\BunnyStream::register();
+        $this->app['events']->subscribe(Assets\Subscriber::class);
+        $this->app['events']->subscribe(Migration\RestoreSubscriber::class);
 
         $this->mergeConfigFrom(__DIR__ . '/../config/bunny-stream.php', 'statamic.bunny-stream');
         $this->loadJsonTranslationsFrom(__DIR__ . '/../lang');

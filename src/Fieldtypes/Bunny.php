@@ -20,6 +20,7 @@ class Bunny extends Fieldtype
             'hostname'     => config('statamic.bunny-stream.hostname'),
             'listUrl'      => cp_route('bunny.cp.videoList'),
             'thumbnailUrl' => $thumbnailUrl,
+            'previewUrl'   => cp_route('bunny.cp.preview', '__GUID__'),
         ];
 
         if ($value = $this->field->value()) {
@@ -40,12 +41,6 @@ class Bunny extends Fieldtype
             return null;
         }
 
-        return new BunnyVideo(
-            guid: $value,
-            hostname: config('statamic.bunny-stream.hostname'),
-            libraryId: config('statamic.bunny-stream.library_id'),
-            tokenKey: config('statamic.bunny-stream.token_key'),
-            tokenExpiry: config('statamic.bunny-stream.token_expiry', 24),
-        );
+        return BunnyVideo::make($value);
     }
 }

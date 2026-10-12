@@ -26,10 +26,12 @@ export default {
     data() {
         return {
             uploader: null,
-            openUploadHandler: null,
         };
     },
     methods: {
+        openDashboard() {
+            document.getElementById('bunny-upload')?.click();
+        },
         initializeUppy() {
             this.uploader = markRaw(new Uppy()
                 .use(Dashboard, {
@@ -107,11 +109,7 @@ export default {
             this.uploader.on('complete', (result) => {
                 if (result.successful.length > 0) {
                     const message = result.successful.length === 1 ? __('1 video uploaded successfully.') : __(':count videos successfully uploaded.', { count: result.successful.length });
-                    console.log(message); // Replace with toast if needed
-                }
-
-                if (result.failed.length > 0) {
-                    console.log('Failed files: ', result.failed);
+                    Statamic.$toast.success(message);
                 }
 
                 emitter.emit('load');
@@ -119,14 +117,14 @@ export default {
         }
     },
     created() {
-        this.openUploadHandler = () => document.getElementById('bunny-upload')?.click();
-        emitter.on('upload', this.openUploadHandler);
+        emitter.on('upload', this.openDashboard);
     },
     mounted() {
         this.initializeUppy();
     },
     beforeUnmount() {
-        emitter.off('upload', this.openUploadHandler);
+        // Inertia remounts the page on every visit; don't leave handlers or a second dashboard behind.
+        emitter.off('upload', this.openDashboard);
         this.uploader?.destroy();
     }
 };

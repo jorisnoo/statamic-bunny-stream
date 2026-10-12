@@ -4,7 +4,7 @@
             ref="input"
             class="tw:flex-1"
             :clearable="true"
-            :disabled="false"
+            :disabled="isReadOnly"
             :options="options"
             :placeholder="__('Select video...')"
             :searchable="true"
@@ -22,17 +22,40 @@
                     <div class="tw:text-sm tw:text-gray-700 tw:text-left tw:py-2 tw:px-4" v-text="__('No options to choose from.')" />
                 </template>
         </Combobox>
+
+        <div v-if="value && selectedOption?.image" class="tw:mt-3 tw:max-w-xs">
+            <VideoPoster
+                :thumbnail="selectedOption.image"
+                :duration="preview?.duration ?? selectedOption.duration"
+                :label="__('Play :title', { title: selectedOption.title })"
+                :disabled="loadingPreview"
+                @play="openPreview"
+            />
+        </div>
+
+        <PlayerStack
+            v-model:open="previewOpen"
+            :src="preview?.embed_url"
+            :title="preview?.title"
+            :duration="preview?.duration"
+            :width="preview?.width"
+            :height="preview?.height"
+        />
     </div>
 </template>
 
 <script setup>
-import { computed, ref, onMounted } from 'vue';
+import { computed, getCurrentInstance, ref, onMounted } from 'vue';
 import { Fieldtype } from '@statamic/cms';
 import { Combobox } from '@statamic/cms/ui';
+import PlayerStack from '../components/player/PlayerStack.vue';
+import VideoPoster from '../components/player/VideoPoster.vue';
 const emit = defineEmits(Fieldtype.emits);
 const props = defineProps(Fieldtype.props);
-const { defineReplicatorPreview, expose, update } = Fieldtype.use(emit, props);
+const { defineReplicatorPreview, expose, isReadOnly, update } = Fieldtype.use(emit, props);
 defineExpose(expose);
+// Statamic 6 exposes its configured axios (CSRF, session handling) only to components.
+const http = getCurrentInstance().appContext.config.globalProperties.$axios;
 
 // Sentinel for "no video selected". The combobox needs a real option value to
 // select, but we always store null.
@@ -63,6 +86,7 @@ const options = computed(() => {
             label: `${video.title} (${new Date(video.dateUploaded).toLocaleString()})`,
             title: video.title,
             image: thumbnailUrl(video.guid),
+            duration: video.length,
         }));
 
     // Keep a selected video that's no longer in the library around, otherwise
@@ -91,14 +115,34 @@ function thumbnailUrl(guid) {
 }
 
 function getVideos() {
-    fetch(props.meta.listUrl)
-        .then((response) => response.json())
-        .then((items) => {
-            videos.value = Array.isArray(items) ? items : [];
+    http.get(props.meta.listUrl)
+        .then(({ data }) => {
+            videos.value = Array.isArray(data) ? data : [];
         })
         .catch((error) => {
-            console.error(error);
+            Statamic.$toast.error(error.response?.data?.message || __('Could not load videos.'));
         });
+}
+
+const selectedOption = computed(() => options.value.find((option) => option.value === props.value && option.value !== NONE));
+const preview = ref(null);
+const previewOpen = ref(false);
+const loadingPreview = ref(false);
+
+// Fetch the signed player URL on demand; it can't be built in the browser.
+function openPreview() {
+    if (preview.value?.guid === props.value) {
+        previewOpen.value = true;
+        return;
+    }
+    loadingPreview.value = true;
+    http.get(props.meta.previewUrl.replace('__GUID__', props.value))
+        .then(({ data }) => {
+            preview.value = { ...data, guid: props.value };
+            previewOpen.value = true;
+        })
+        .catch((error) => Statamic.$toast.error(error.response?.data?.message || __('Could not load the video.')))
+        .finally(() => (loadingPreview.value = false));
 }
 
 function comboboxUpdated(value) {

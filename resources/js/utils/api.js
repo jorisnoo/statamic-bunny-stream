@@ -19,7 +19,10 @@ async function handle(response) {
     }
 
     if (!response.ok) {
-        const details = typeof body === 'string' ? body : body?.message || body?.error;
+        // Surface the server's message (e.g. validation or "remote deletion is disabled").
+        const details = typeof body === 'string'
+            ? body
+            : Object.values(body?.errors ?? {})[0]?.[0] || body?.message || body?.error;
         const message = [`Request failed with status ${response.status}`, details]
             .filter(Boolean)
             .join(': ');
