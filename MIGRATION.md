@@ -49,6 +49,7 @@ The field handle, display name, validation, conditions and instructions stay as 
 - [ ] **Have a persistent queue.** The database, Redis or SQS driver all work; `sync` does not. You also need to be able to run and stop its workers.
 - [ ] **Know your content store.** The tool migrates Statamic's flat files: entries, terms, globals, users, asset metadata and entry working copies. If you use the Eloquent driver or a custom repository for any content that contains Bunny fields, those records have to be migrated with your own tooling. The tool refuses rather than skipping them.
 - [ ] **Know where content changes land.** If content is versioned in Git, plan to commit what the migration changes. Run the migration where the live content files and the live asset disk are.
+- [ ] **Treat video `.meta` files as server-owned.** Queue workers write each video's Bunny record into the asset's `.meta` file on the server. Deploys must not overwrite those files with older copies from Git.
 
 ### Find your Bunny fields
 
@@ -346,6 +347,7 @@ To undo the whole move, also remove the container from `asset_containers`. Impor
 ### After migration
 
 - **A video shows the original file instead of the player.** The template still prints the field directly. Use `bunny_stream` (step 6).
+- **"Not synced" on a video that was already streaming.** Its stream record was lost, for example because a deploy overwrote the `.meta` file. Don't click **Retry sync**, which uploads a duplicate. Run `php artisan bunny-stream:repair` to see which Bunny video it matches, then `--apply` to restore the record.
 - **"Not synced" on a new upload.** The queue isn't running or uses `sync`. Fix the queue, then click **Retry sync**.
 - **Stuck in *creating* with an error.** The request that created the Bunny video was interrupted. **Retry sync** is hidden in this state, because retrying would fail the same way. Find the video in Bunny whose title ends with the generation ID shown in the error, paste its GUID into **Attach and retry**, and the upload resumes without creating a duplicate.
 - **Saving content fails with "Unresolved or ambiguous Bunny reference".** A restored old revision contains a GUID that no imported asset matches. Import the video, or clear the field in that revision before saving.

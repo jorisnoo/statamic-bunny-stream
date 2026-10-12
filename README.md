@@ -187,6 +187,17 @@ Configure PHP, your web server/proxy, and Statamic's upload limits for the large
 
 Reuploads retain the previous stream until the replacement is ready. Renames retain stream identity. Once `asset_containers` is set, remote cleanup is queued, retryable, and disabled by default, including the legacy dashboard's delete endpoint. With no asset containers configured, the dashboard deletes immediately as before. Enable it only after every consumer of the library has migrated. A delete job refuses to remove a GUID still owned by another asset. Turning cleanup on does not retroactively delete videos retained while it was off.
 
+**Keeping asset data safe.** Statamic 6 can erase an asset's custom data when it lists an asset whose stored width, height or duration is empty. That data includes alt text, title and the Bunny stream record. It happens, for example, with a WebM recording that has no duration header. The addon swaps in a subclass of Statamic's asset class that loads the data before metadata is regenerated. It only does this when the site uses Statamic's default asset class; a custom asset class or the Eloquent driver is left untouched.
+
+Stream records are written by queue workers on the server, so treat the `.meta` files of video containers as server-owned and don't overwrite them from Git on deploy. If a record is lost anyway, don't click **Retry sync**, which uploads a new copy. Instead run:
+
+```bash
+php artisan bunny-stream:repair          # lists the Bunny videos it can match
+php artisan bunny-stream:repair --apply  # restores those records
+```
+
+It only restores certain matches: the import path, or the `[generation]` suffix the sync job adds to each video title. It reports anything ambiguous.
+
 If creating a remote video is interrupted before its GUID is saved, retries deliberately stop to avoid creating duplicates. Find the remote video with the generation identifier shown in its Bunny title, then use **Attach and retry** in the asset editor. If no such video exists, investigate the failed request before restarting that upload.
 
 ### Streaming in templates

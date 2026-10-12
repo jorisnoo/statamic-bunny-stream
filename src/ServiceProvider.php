@@ -20,6 +20,7 @@ class ServiceProvider extends AddonServiceProvider
         Console\Commands\ImportAssetsCommand::class,
         Console\Commands\MigrateFieldsCommand::class,
         Console\Commands\RollbackCommand::class,
+        Console\Commands\RepairCommand::class,
     ];
 
     protected $vite = [
@@ -90,8 +91,23 @@ class ServiceProvider extends AddonServiceProvider
         }
     }
 
+    public static function protectAssetMetadata(): void
+    {
+        // Only replace Statamic's own class; other asset drivers (e.g. Eloquent) keep theirs.
+        if (get_class(app(\Statamic\Contracts\Assets\Asset::class)) !== \Statamic\Assets\Asset::class) {
+            return;
+        }
+        app()->bind(\Statamic\Contracts\Assets\Asset::class, Assets\SafeAsset::class);
+
+        // Sites that restrict cached classes must still be able to unserialize these assets.
+        if (is_array($classes = config('cache.serializable_classes'))) {
+            config(['cache.serializable_classes' => array_merge($classes, [Assets\SafeAsset::class])]);
+        }
+    }
+
     public function bootAddon(): void
     {
+        static::protectAssetMetadata();
         static::registerGates();
         static::registerAssetHooks();
 

@@ -4,7 +4,8 @@
 require __DIR__.'/../vendor/autoload.php';
 spl_autoload_register(function ($class) {
     $prefix = 'Noo\\BunnyStream\\';
-    if (str_starts_with($class, $prefix)) { require __DIR__.'/../src/'.str_replace('\\', '/', substr($class, strlen($prefix))).'.php'; }
+    // Missing files are left to other loaders, as Composer does (Laravel probes guessed policy names).
+    if (str_starts_with($class, $prefix) && is_file($file = __DIR__.'/../src/'.str_replace('\\', '/', substr($class, strlen($prefix))).'.php')) { require $file; }
 });
 $root = sys_get_temp_dir().'/bunny-tests-'.bin2hex(random_bytes(6));
 mkdir($root, 0700, true);
@@ -25,6 +26,7 @@ Noo\BunnyStream\Fieldtypes\Bunny::register();
 Noo\BunnyStream\Fieldtypes\BunnyStream::register();
 $app['events']->subscribe(Noo\BunnyStream\Assets\Subscriber::class);
 $app['events']->subscribe(Noo\BunnyStream\Migration\RestoreSubscriber::class);
+Noo\BunnyStream\ServiceProvider::protectAssetMetadata();
 function check($condition, $message) { if (! $condition) { throw new RuntimeException($message); } echo 'PASS '.explode(': ', $message, 2)[0]."\n"; }
 check(true, 'Statamic application boots');
 set_exception_handler(function ($e) { fwrite(STDERR, $e."\n"); exit(1); });
@@ -463,4 +465,47 @@ fakeHttp(fn () => Http::response(['guid' => '99999999-9999-4999-8999-99999999999
 app(Noo\BunnyStream\Repositories\VideoRepository::class)->forget('99999999-9999-4999-8999-999999999999');
 $preview = (new Noo\BunnyStream\Http\Controllers\Cp\Preview(request()))('99999999-9999-4999-8999-999999999999', app(Noo\BunnyStream\Repositories\VideoRepository::class));
 check($preview['title'] === 'Legacy' && str_contains($preview['embed_url'], 'token=') && $preview['duration'] === 12, 'legacy preview returns a signed player URL');
+// Listing an asset whose stored duration is null must not erase its data.
+check(Asset::make() instanceof Noo\BunnyStream\Assets\SafeAsset, 'Statamic assets use the metadata-safe class');
+$container->disk()->put('clip.webm', file_get_contents(__DIR__.'/fixtures/video.mp4'));
+$clip = Asset::make()->container($container)->path('clip.webm');
+$clip->set('alt', 'Keep me')->set('bunny_stream', ['key' => 'kc', 'guid' => 'keep-guid', 'state' => 'ready'])->saveQuietly();
+$clipMeta = Statamic\Facades\YAML::parse($container->disk()->get($clip->metaPath()));
+$clipMeta['duration'] = null;
+$container->disk()->put($clip->metaPath(), Statamic\Facades\YAML::dump($clipMeta));
+Illuminate\Support\Facades\Cache::forget($clip->metaCacheKey());
+Statamic\Facades\Blink::flush();
+$listed = $container->queryAssets()->where('path', 'clip.webm')->first();
+$listed->duration();
+$clipMeta = Statamic\Facades\YAML::parse($container->disk()->get($clip->metaPath()));
+check(($clipMeta['data']['alt'] ?? null) === 'Keep me' && ($clipMeta['data']['bunny_stream']['guid'] ?? null) === 'keep-guid', 'metadata regeneration keeps asset data');
+// Lost stream records are recovered from the Bunny library, never guessed.
+$repairGuid = 'aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa';
+$titledGuid = 'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb';
+foreach (['bunny-stream/123/'.$repairGuid.'.mp4', 'film-lost.mp4', 'twice.mp4'] as $path) {
+    $container->disk()->put($path, file_get_contents(__DIR__.'/fixtures/video.mp4'));
+    Asset::make()->container($container)->path($path)->saveQuietly();
+}
+$repairFake = new class($repairGuid, $titledGuid) extends BunnyClient {
+    public function __construct(private $imported, private $titled) {}
+    public function isConfigured(): bool { return true; }
+    public function videos(int $page = 1, int $perPage = 100, ?string $search = null): array {
+        return ['totalItems' => 4, 'items' => [
+            ['guid' => $this->imported, 'title' => 'Anything', 'status' => 4],
+            ['guid' => $this->titled, 'title' => 'film-lost.mp4 [cccccccc-3333-4333-8333-cccccccccccc]', 'status' => 4],
+            ['guid' => 'dddddddd-4444-4444-8444-dddddddddddd', 'title' => 'twice.mp4 [eeeeeeee-5555-4555-8555-eeeeeeeeeeee]', 'status' => 4],
+            ['guid' => 'ffffffff-6666-4666-8666-ffffffffffff', 'title' => 'twice.mp4 [99999999-7777-4777-8777-999999999999]', 'status' => 4],
+        ]];
+    }
+};
+$app->instance(BunnyClient::class, $repairFake);
+$kernel->registerCommand(new Noo\BunnyStream\Console\Commands\RepairCommand);
+$kernel->call('bunny-stream:repair');
+check(Asset::find('videos::film-lost.mp4')->get('bunny_stream') === null, 'repair dry run writes nothing');
+$kernel->call('bunny-stream:repair', ['--apply' => true]);
+$output = $kernel->output();
+check(Asset::find('videos::bunny-stream/123/'.$repairGuid.'.mp4')->get('bunny_stream')['guid'] === $repairGuid, 'repair restores imported videos by path');
+$recovered = Asset::find('videos::film-lost.mp4')->get('bunny_stream');
+check($recovered['guid'] === $titledGuid && $recovered['generation'] === 'cccccccc-3333-4333-8333-cccccccccccc', 'repair restores synced videos by title and generation');
+check(Asset::find('videos::twice.mp4')->get('bunny_stream') === null && str_contains($output, 'twice.mp4: 2 possible'), 'repair leaves ambiguous matches alone: '.$output);
 echo "All checks passed.\n";
