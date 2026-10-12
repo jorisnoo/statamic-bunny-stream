@@ -435,4 +435,32 @@ Statamic\Facades\Role::make('writer')->title('Writer')->permissions(['access cp'
 $writer = Statamic\Facades\User::make()->email('writer@example.test')->assignRole('writer');
 $writer->save();
 check(Illuminate\Support\Facades\Gate::forUser($writer)->allows('use bunny fieldtype') && Illuminate\Support\Facades\Gate::forUser($viewer)->denies('use bunny fieldtype'), 'legacy picker requires an editing permission');
+// Streamed videos show Bunny's thumbnail wherever the CP lists assets.
+Noo\BunnyStream\ServiceProvider::registerAssetHooks();
+$chaptered = Asset::find($chaptered->id());
+$chaptered->set('bunny_stream', array_merge($chaptered->get('bunny_stream'), ['metadata' => ['length' => 90, 'width' => 1920, 'height' => 1080, 'thumbnailFileName' => 'custom.jpg'], 'pending_metadata' => ['encodeProgress' => 40]]))->saveQuietly();
+// The harness has no CP routes, so stand in for the one Statamic's ffmpeg thumbnails use
+// and call the resource step that runs the hook.
+Illuminate\Support\Facades\Route::get('cp/thumbnails/{encoded_asset}/{size?}', fn () => '')->name('statamic.cp.assets.thumbnails.show');
+Illuminate\Support\Facades\Route::get('cp/bunny/asset-stream', fn () => '')->name('statamic.cp.bunny.cp.asset');
+app('router')->getRoutes()->refreshNameLookups();
+$thumbnails = fn ($asset, $resource = Statamic\Http\Resources\CP\Assets\AssetsFieldtypeAsset::class) => (new ReflectionMethod($resource, 'thumbnails'))->invoke(new $resource($asset));
+$listed = $thumbnails($chaptered);
+check(($listed['thumbnail'] ?? null) === 'https://example.test/88888888-8888-4888-8888-888888888888/custom.jpg', 'Assets fields show the Bunny thumbnail');
+$plain = Asset::make()->container($container)->path('notes.txt');
+$container->disk()->put('notes.txt', 'text');
+$plain->saveQuietly();
+check(($listed['bunny_stream']['playable'] ?? null) === true && $listed['bunny_stream']['state'] === 'ready', 'Assets fields know which selections are playable streams');
+check(($thumbnails($plain)['thumbnail'] ?? null) === null && ! isset($thumbnails($plain)['bunny_stream']), 'other files keep their thumbnails');
+check(($thumbnails($chaptered, Statamic\Http\Resources\CP\Assets\FolderAsset::class)['thumbnail'] ?? null) === $listed['thumbnail'], 'the asset browser shows the Bunny thumbnail');
+// The status response carries what the player needs.
+$status = Illuminate\Http\Request::create('/bunny/asset-stream', 'GET', ['asset' => $chaptered->id()]);
+$status->setUserResolver(fn () => $admin);
+$response = $controller($status, new BunnyClient);
+check($response['duration'] === 90 && $response['width'] === 1920 && $response['progress'] === 40 && $response['title'] === 'chaptered.mp4', 'status includes title, duration, resolution and progress');
+// The legacy field previews a selected video with a signed player URL.
+fakeHttp(fn () => Http::response(['guid' => '99999999-9999-4999-8999-999999999999', 'title' => 'Legacy', 'length' => 12, 'width' => 640, 'height' => 360]));
+app(Noo\BunnyStream\Repositories\VideoRepository::class)->forget('99999999-9999-4999-8999-999999999999');
+$preview = (new Noo\BunnyStream\Http\Controllers\Cp\Preview(request()))('99999999-9999-4999-8999-999999999999', app(Noo\BunnyStream\Repositories\VideoRepository::class));
+check($preview['title'] === 'Legacy' && str_contains($preview['embed_url'], 'token=') && $preview['duration'] === 12, 'legacy preview returns a signed player URL');
 echo "All checks passed.\n";

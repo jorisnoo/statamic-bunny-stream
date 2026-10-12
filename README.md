@@ -177,7 +177,9 @@ Enable existing asset containers in `config/statamic/bunny-stream.php`:
 'show_dashboard' => true,
 ```
 
-Editors upload originals to these containers and select them with ordinary Assets fields in entries, Bard, and Replicator. Video uploads queue a transfer to Bunny. The asset editor automatically gains a **Bunny Stream** field with status, playback, retry, custom thumbnails, and the optional chapter tools. Images and other files are unaffected. Metadata is managed by the integration; editing the form cannot replace remote GUIDs.
+Editors upload originals to these containers and select them with ordinary Assets fields in entries, Bard, and Replicator. Video uploads queue a transfer to Bunny. The asset editor automatically gains a **Bunny Stream** field with status, encoding progress, retry, custom thumbnails, and the optional chapter tools. Its poster opens the full Bunny player, with chapter shortcuts.
+
+Streamed videos use their Bunny thumbnail in the asset browser and in Assets fields, without needing ffmpeg. Assets fields that contain streamed videos also get a **Play video** action, which opens the player (with a playlist when the field holds several videos) without leaving the entry. The legacy Bunny field shows a playable preview of the selected video as well. Images and other files are unaffected. Metadata is managed by the integration; editing the form cannot replace remote GUIDs.
 
 Use a persistent Laravel queue connection, such as database or Redis. The configured `queue` is a queue **name**, not a connection. Run its workers continuously. Upload jobs allow one hour; set the connection's `retry_after` (or SQS visibility timeout) above 3660 seconds and the worker timeout to 3600 seconds. After upload, the job checks Bunny's encoding status once a minute for up to 12 hours. Queue failures remain visible in the asset editor and Laravel's failed-job tooling. The CP status display polls for up to ten minutes; refresh to continue monitoring long encodes.
 

@@ -3,7 +3,6 @@
         <div class="tw:flex tw:flex-wrap tw:items-center tw:gap-2" role="status" aria-live="polite">
             <Badge :text="stateLabel" :color="stateColor" pill />
             <Badge v-if="stream.source === 'derivative'" :text="__('Recovered MP4')" color="amber" pill />
-            <span v-if="active" class="tw:text-sm tw:text-gray-600" v-text="__('Checking every few seconds…')" />
             <Button class="tw:ms-auto" size="sm" icon="sync" :text="__('Refresh')" :loading="busy === 'refresh'" :disabled="!!busy" @click="load(true)" />
         </div>
 
@@ -12,13 +11,43 @@
         <Alert v-if="stopped" variant="warning" :text="__('Still working on it. Refresh to keep checking.')" />
         <Description v-if="stream.source === 'derivative'" :text="__('Bunny kept no original for this video, so this asset holds its best MP4 rendition. Replace the file to store the original; the stream stays online until the new one is ready.')" />
 
-        <iframe
-            v-if="stream.embed_url"
+        <div v-if="stream.embed_url" class="tw:space-y-2">
+            <VideoPoster
+                :thumbnail="posterUrl"
+                :duration="stream.duration"
+                :label="__('Play :title', { title: stream.title })"
+                @play="playerOpen = true"
+            >
+                <template v-if="stream.progress !== null && active">
+                    {{ __('New version encoding: :progress%', { progress: stream.progress }) }}
+                </template>
+            </VideoPoster>
+            <div class="tw:flex tw:items-center tw:justify-between tw:gap-2 tw:text-xs tw:text-gray-600 tw:dark:text-gray-400">
+                <span>{{ details }}</span>
+                <Button size="xs" variant="ghost" icon="maximize" :text="__('Open player')" @click="playerOpen = true" />
+            </div>
+        </div>
+
+        <!-- No stream yet: show where the upload is instead of an empty player. -->
+        <div v-else-if="active" class="tw:flex tw:aspect-video tw:flex-col tw:items-center tw:justify-center tw:gap-3 tw:rounded-lg tw:border tw:border-dashed tw:border-gray-300 tw:dark:border-gray-700 tw:p-6 tw:text-center">
+            <span class="tw:text-sm tw:font-medium">{{ stateLabel }}</span>
+            <div v-if="stream.progress !== null" class="tw:w-full tw:max-w-48">
+                <div class="tw:h-1.5 tw:overflow-hidden tw:rounded-full tw:bg-gray-200 tw:dark:bg-gray-700" role="progressbar" :aria-valuenow="stream.progress" aria-valuemin="0" aria-valuemax="100" :aria-label="__('Encoding progress')">
+                    <div class="tw:h-full tw:rounded-full tw:bg-blue-500 tw:transition-[width] tw:duration-500" :style="{ width: `${stream.progress}%` }" />
+                </div>
+                <span class="tw:mt-1 tw:block tw:text-xs tw:text-gray-600 tw:tabular-nums">{{ stream.progress }}%</span>
+            </div>
+            <span class="tw:text-xs tw:text-gray-600 tw:dark:text-gray-400">{{ __('The player appears here once Bunny has processed the video.') }}</span>
+        </div>
+
+        <PlayerStack
+            v-model:open="playerOpen"
             :src="stream.embed_url"
-            :title="__('Video preview')"
-            class="tw:w-full tw:aspect-video tw:rounded tw:border-0"
-            allow="autoplay; encrypted-media; picture-in-picture"
-            allowfullscreen
+            :title="stream.title"
+            :duration="stream.duration"
+            :width="stream.width"
+            :height="stream.height"
+            :chapters="stream.chapters || []"
         />
 
         <template v-if="editable">
@@ -68,6 +97,9 @@
 import { computed, getCurrentInstance, ref, onMounted, onBeforeUnmount } from 'vue';
 import { Fieldtype } from '@statamic/cms';
 import { Alert, Badge, Button, Description, Field, Input } from '@statamic/cms/ui';
+import PlayerStack from '../components/player/PlayerStack.vue';
+import VideoPoster from '../components/player/VideoPoster.vue';
+import { formatTime } from '@/utils/time.js';
 
 const emit = defineEmits(Fieldtype.emits);
 const props = defineProps(Fieldtype.props);
@@ -87,6 +119,8 @@ const busy = ref('');
 const recoveryGuid = ref('');
 const thumbnailInput = ref(null);
 const stopped = ref(false);
+const playerOpen = ref(false);
+const thumbnailVersion = ref(null);
 const generating = ref(false);
 let timer = null;
 let polls = 0;
@@ -114,6 +148,12 @@ const active = computed(() => !stream.value.error && ACTIVE.includes(stream.valu
 const editable = computed(() => stream.value.can_edit && !isReadOnly.value);
 // A lost create response needs Attach and retry; a plain retry would fail the same way.
 const canRetry = computed(() => stream.value.state !== 'creating' && (stream.value.error || ['not_synced', 'remote_unready'].includes(stream.value.state)));
+// Bunny's CDN caches thumbnails; bust it after uploading a new one.
+const posterUrl = computed(() => stream.value.thumbnail && thumbnailVersion.value ? `${stream.value.thumbnail}?v=${thumbnailVersion.value}` : stream.value.thumbnail);
+const details = computed(() => [
+    stream.value.duration ? formatTime(stream.value.duration) : null,
+    stream.value.width && stream.value.height ? `${stream.value.width} × ${stream.value.height}` : null,
+].filter(Boolean).join(' · '));
 const guidValid = computed(() => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(recoveryGuid.value.trim()));
 
 function apply(data, { syncChapters = false } = {}) {
@@ -197,7 +237,7 @@ async function thumbnail(event) {
     if (!file) return;
     const data = new FormData();
     data.append('thumbnail', file);
-    await action('thumbnail', data, __('Thumbnail updated.'));
+    if (await action('thumbnail', data, __('Thumbnail updated.'))) thumbnailVersion.value = Date.now();
     // Allow choosing the same file again.
     if (thumbnailInput.value) thumbnailInput.value.value = '';
 }

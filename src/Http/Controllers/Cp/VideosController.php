@@ -20,7 +20,7 @@ class VideosController extends CpController
 
     public function show(BunnyClient $bunny, string $guid)
     {
-        return $bunny->video($guid);
+        return array_merge($bunny->video($guid), ['embed_url' => \Noo\BunnyStream\Data\BunnyVideo::make($guid)->embedUrl()]);
     }
 
     public function store(Request $request, BunnyClient $bunny, VideoRepository $videos)

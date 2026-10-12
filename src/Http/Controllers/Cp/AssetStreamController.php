@@ -76,8 +76,13 @@ class AssetStreamController extends CpController
             }
         }
         $video = Streams::video(array_merge($data, ['metadata' => $metadata]));
+        $pending = $data['pending_metadata'] ?? [];
         return ['state' => $data['state'] ?? 'not_synced', 'error' => $data['error'] ?? null,
             'source' => $data['source'] ?? null, 'embed_url' => $video?->embedUrl(), 'thumbnail' => $video?->thumbnail(),
+            'title' => $asset->get('title') ?: $asset->basename(),
+            'duration' => $metadata['length'] ?? null, 'width' => $metadata['width'] ?? null, 'height' => $metadata['height'] ?? null,
+            // Encoding progress of the upload in flight (a replacement keeps the current stream playable).
+            'progress' => isset($pending['encodeProgress']) ? (int) $pending['encodeProgress'] : null,
             'chapters' => $metadata['chapters'] ?? [], 'can_edit' => $request->user()->can('edit', $asset)];
     }
 }

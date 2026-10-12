@@ -63,9 +63,37 @@ class ServiceProvider extends AddonServiceProvider
         });
     }
 
+    public static function registerAssetHooks(): void
+    {
+        // Show Bunny's (custom) thumbnail for streamed videos in the asset browser,
+        // Assets field tiles and the asset editor, without needing ffmpeg.
+        $hook = function ($payload, $next) {
+            $asset = $this->resource;
+            if ($asset instanceof \Statamic\Contracts\Assets\Asset && Assets\Streams::enabled($asset)) {
+                $video = Assets\Streams::video($asset->get('bunny_stream'));
+                if ($video) {
+                    $payload->data->thumbnail = $video->thumbnail();
+                }
+                // Lets the "Play video" field action find streams among an Assets field's selection.
+                $payload->data->bunny_stream = [
+                    'playable' => (bool) $video,
+                    'state' => $asset->get('bunny_stream')['state'] ?? 'not_synced',
+                    'endpoint' => cp_route('bunny.cp.asset'),
+                ];
+            }
+
+            return $next($payload);
+        };
+        foreach ([\Statamic\Http\Resources\CP\Assets\Asset::class, \Statamic\Http\Resources\CP\Assets\FolderAsset::class,
+            \Statamic\Http\Resources\CP\Assets\AssetsFieldtypeAsset::class] as $resource) {
+            $resource::hook('asset', $hook);
+        }
+    }
+
     public function bootAddon(): void
     {
         static::registerGates();
+        static::registerAssetHooks();
 
         Permission::extend(function () {
             Permission::group('bunny-stream', __('Bunny Stream'), function () {

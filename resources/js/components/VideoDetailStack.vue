@@ -3,7 +3,7 @@
         <ui-stack
             v-model:open="isOpen"
             :title="video.title"
-            narrow
+            size="half"
         >
             <div class="tw:p-4 tw:space-y-6">
                 <div v-if="loading" class="tw:flex tw:items-center tw:justify-center tw:py-12">
@@ -14,6 +14,9 @@
                 </div>
 
                 <template v-else-if="fullVideo">
+                    <!-- Player -->
+                    <BunnyPlayer :src="fullVideo.embed_url" :title="fullVideo.title" />
+
                     <!-- Thumbnail -->
                     <div>
                         <h3 class="tw:text-sm tw:font-semibold tw:text-gray-900 tw:dark:text-dark-100 tw:mb-2">{{ __('Thumbnail') }}</h3>
@@ -85,12 +88,13 @@
 <script>
 import ChapterEditor from './ChapterEditor.vue';
 import { Button, Field, Input } from '@statamic/cms/ui';
+import BunnyPlayer from './player/BunnyPlayer.vue';
 import { formatTime } from '@/utils/time.js';
 import { emitter } from '@/utils/emitter.js';
 import * as api from '@/utils/api.js';
 
 export default {
-    components: { ChapterEditor, Button, Field, Input },
+    components: { ChapterEditor, BunnyPlayer, Button, Field, Input },
     inject: ['bunnyEndpoint', 'bunnyHostname', 'bunnyChaptersEnabled'],
     props: {
         video: {
