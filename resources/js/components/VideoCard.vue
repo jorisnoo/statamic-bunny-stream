@@ -1,20 +1,24 @@
 <template>
     <tr
-        :class="ready ? 'tw:cursor-pointer tw:hover:bg-gray-50 tw:dark:hover:bg-dark-400' : ''"
-        @click="ready && $emit('select', currentVideo)"
+        :class="isPlayable ? 'tw:cursor-pointer tw:hover:bg-gray-50 tw:dark:hover:bg-dark-400' : ''"
+        @click="isPlayable && $emit('select', currentVideo)"
     >
         <td>
             <div class="tw:flex tw:items-center tw:gap-2">
-                <template v-if="ready">
+                <template v-if="isPlayable">
                     <img :src="thumbnailUrl" alt="" class="tw:size-16 tw:rounded tw:object-cover tw:shrink-0" />
                     <button type="button" class="tw:text-sm tw:font-medium tw:truncate tw:text-left tw:cursor-pointer" @click.stop="$emit('select', currentVideo)">
                         {{ currentVideo.title }}
                     </button>
                 </template>
-                <template v-else-if="failed">
-                    <div class="tw:size-16 tw:rounded tw:bg-red-100 tw:shrink-0" />
-                    <span class="tw:text-sm tw:font-medium tw:truncate">{{ currentVideo.title }}</span>
-                    <span class="tw:text-sm tw:text-red-600">{{ __('Encoding failed') }}</span>
+                <template v-else-if="hasFailed">
+                    <div class="tw:size-16 tw:rounded tw:bg-red-100 tw:flex tw:items-center tw:justify-center tw:shrink-0" aria-hidden="true">
+                        <span class="tw:text-xl tw:font-bold tw:text-red-600">!</span>
+                    </div>
+                    <div>
+                        <div class="tw:text-sm tw:font-medium tw:truncate">{{ currentVideo.title }}</div>
+                        <div class="tw:text-sm tw:text-red-600">{{ failureMessage }}</div>
+                    </div>
                 </template>
                 <template v-else>
                     <div class="tw:size-16 tw:rounded tw:bg-gray-300 tw:dark:bg-dark-200 tw:flex tw:items-center tw:justify-center tw:shrink-0">
@@ -30,8 +34,11 @@
             </div>
         </td>
         <td class="tw:hidden tw:md:table-cell">
-            <span v-if="ready || failed" class="tw:text-sm tw:text-gray-500">
+            <span v-if="isPlayable" class="tw:text-sm tw:text-gray-500">
                 {{ formatDate(currentVideo.dateUploaded) }}
+            </span>
+            <span v-else-if="hasFailed" class="tw:text-sm tw:text-red-600">
+                {{ failureMessage }}
             </span>
             <span v-else class="tw:text-sm tw:text-gray-500">
                 {{ __('Processing...') }}
@@ -73,15 +80,25 @@ export default {
             isLoading: false,
             triggerDeletion: false,
             thumbnailCacheBuster: '',
+            polling: null,
+            thumbnailUpdatedHandler: null,
         }
     },
     computed: {
-        // Bunny statuses: 4 finished, 7/8 just-in-time playback ready, 5/6 failed.
-        ready() {
-            return [4, 7, 8].includes(this.currentVideo.status);
+        // Bunny's VideoModelStatus: 0 created, 1 uploaded, 2 processing, 3 transcoding,
+        // 4 finished, 5 error, 6 upload failed, 7 JIT segmenting, 8 JIT playlists created.
+        // Transcoding videos already play their first finished resolution.
+        isPlayable() {
+            return [3, 4, 7, 8].includes(this.currentVideo.status);
         },
-        failed() {
+        hasFailed() {
             return [5, 6].includes(this.currentVideo.status);
+        },
+        isProcessing() {
+            return !this.isPlayable && !this.hasFailed;
+        },
+        failureMessage() {
+            return this.currentVideo.status === 6 ? __('Upload failed.') : __('Encoding failed.');
         },
         thumbnailUrl() {
             const base = `https://${this.bunnyHostname}/${this.currentVideo.guid}/${this.currentVideo.thumbnailFileName}`;
@@ -89,19 +106,20 @@ export default {
         },
     },
     mounted() {
-        if (!this.ready && !this.failed) {
+        if (this.isProcessing) {
             this.polling = setInterval(() => {
                 this.loadVideo();
             }, 5000);
         }
 
-        emitter.on(`thumbnail-updated:${this.currentVideo.guid}`, () => {
+        this.thumbnailUpdatedHandler = () => {
             this.thumbnailCacheBuster = Date.now();
-        });
+        };
+        emitter.on(`thumbnail-updated:${this.currentVideo.guid}`, this.thumbnailUpdatedHandler);
     },
     beforeUnmount() {
         clearInterval(this.polling);
-        emitter.off(`thumbnail-updated:${this.currentVideo.guid}`);
+        emitter.off(`thumbnail-updated:${this.currentVideo.guid}`, this.thumbnailUpdatedHandler);
     },
     methods: {
         formatDate(dateString) {
@@ -125,7 +143,7 @@ export default {
             api.get(`${this.bunnyEndpoint}/${this.currentVideo.guid}`)
                 .then((data) => {
                     this.currentVideo = data;
-                    if (this.ready || this.failed) {
+                    if (!this.isProcessing) {
                         clearInterval(this.polling);
                         emitter.emit('load');
                     }

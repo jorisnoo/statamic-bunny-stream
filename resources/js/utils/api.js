@@ -7,17 +7,34 @@ function headers(extra = {}) {
 }
 
 async function handle(response) {
-    if (!response.ok) {
-        // Surface the server's message (e.g. validation or "remote deletion is disabled").
-        let message = `Request failed with status ${response.status}`;
+    const text = response.status === 204 ? '' : await response.text();
+    let body = null;
+
+    if (text !== '') {
         try {
-            const body = await response.json();
-            message = Object.values(body.errors ?? {})[0]?.[0] || body.message || message;
-        } catch {}
-        throw new Error(message);
+            body = JSON.parse(text);
+        } catch {
+            body = text;
+        }
     }
 
-    return response.status === 204 ? null : response.json();
+    if (!response.ok) {
+        // Surface the server's message (e.g. validation or "remote deletion is disabled").
+        const details = typeof body === 'string'
+            ? body
+            : Object.values(body?.errors ?? {})[0]?.[0] || body?.message || body?.error;
+        const message = [`Request failed with status ${response.status}`, details]
+            .filter(Boolean)
+            .join(': ');
+        const error = new Error(message);
+
+        error.status = response.status;
+        error.response = body;
+
+        throw error;
+    }
+
+    return body;
 }
 
 export function get(url) {

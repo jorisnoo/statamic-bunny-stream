@@ -11,6 +11,13 @@ import { markRaw } from 'vue';
 import { emitter } from '@/utils/emitter.js';
 import UppyBunnyCreator from '@/utils/UppyBunnyCreator.js';
 
+const noResumeStorage = {
+    listAllUploads: () => Promise.resolve([]),
+    findUploadsByFingerprint: () => Promise.resolve([]),
+    removeUpload: () => Promise.resolve(),
+    addUpload: () => Promise.resolve(null),
+};
+
 export default {
     components: {
         Button
@@ -18,7 +25,7 @@ export default {
     inject: ['bunnyEndpoint'],
     data() {
         return {
-            uploader: null
+            uploader: null,
         };
     },
     methods: {
@@ -60,7 +67,11 @@ export default {
                 })
                 .use(Tus, {
                     endpoint: 'https://video.bunnycdn.com/tusupload',
-                    retryDelays: [0, 30, 50, 3000, 5000, 10000, 60000],
+                    allowedMetaFields: ['filetype', 'title'],
+                    limit: 3,
+                    retryDelays: [0, 3000, 5000, 10000, 20000, 60000, 60000],
+                    storeFingerprintForResuming: false,
+                    urlStorage: noResumeStorage,
                     onBeforeRequest: (req, file) => {
                         const upload = this.uploader.getFile(file.id).meta.bunnyUpload;
                         if (!upload) {
@@ -74,15 +85,32 @@ export default {
                     }
                 }));
 
+            this.uploader.on('error', (error) => {
+                console.error('Bunny upload setup failed', error);
+                Statamic.$toast.error(error.message || __('Unknown error'));
+            });
+
+            this.uploader.on('upload-error', (file, error, response) => {
+                const bunnyResponse = error?.originalResponse;
+                const status = bunnyResponse?.getStatus?.() ?? response?.status;
+                const body = bunnyResponse?.getBody?.();
+                const responseText = typeof body === 'string' ? body.trim() : '';
+                const details = [status ? `HTTP ${status}` : null, responseText || error?.message]
+                    .filter(Boolean)
+                    .join(': ');
+
+                console.error('Bunny upload failed', { file, error, status, response: responseText });
+                Statamic.$toast.error(__('Upload failed for :file: :details', {
+                    file: file?.name || __('Unknown file'),
+                    details: details || __('Unknown error'),
+                }));
+            });
+
             this.uploader.on('complete', (result) => {
                 if (result.successful.length > 0) {
                     const message = result.successful.length === 1 ? __('1 video uploaded successfully.') : __(':count videos successfully uploaded.', { count: result.successful.length });
                     Statamic.$toast.success(message);
                 }
-
-                result.failed.forEach((file) => {
-                    Statamic.$toast.error(__('Upload of :name failed.', { name: file.name }));
-                });
 
                 emitter.emit('load');
             });
