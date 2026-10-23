@@ -20,6 +20,12 @@ return [
     // Token expiry time in hours. Defaults to 24 hours.
     'token_expiry' => env('BUNNY_STREAM_TOKEN_EXPIRY', 24),
 
+    // Safari and iOS start playback on the first rendition in the HLS playlist, which
+    // Bunny lists in encoding order (usually 360p). The playlist is served through
+    // the site with the sharpest rendition up to this many lines moved to the front.
+    // Set to null to link to Bunny's playlist directly.
+    'playlist_start_resolution' => env('BUNNY_STREAM_PLAYLIST_START_RESOLUTION', 720),
+
     // Enable chapter editing and automatic chapter generation.
     'chapters' => env('BUNNY_STREAM_CHAPTERS', false),
 

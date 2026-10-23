@@ -12,6 +12,7 @@ class BunnyVideo extends ArrayableString
         protected string|int $libraryId,
         protected ?string $tokenKey = null,
         protected int $tokenExpiry = 24,
+        protected ?int $startResolution = null,
     ) {
         parent::__construct($this->url());
     }
@@ -22,6 +23,15 @@ class BunnyVideo extends ArrayableString
     }
 
     public function url(): string
+    {
+        if ($this->startResolution) {
+            return route('bunny.playlist', $this->guid);
+        }
+
+        return $this->sourceUrl();
+    }
+
+    public function sourceUrl(): string
     {
         return "https://{$this->hostname}/{$this->guid}/playlist.m3u8";
     }

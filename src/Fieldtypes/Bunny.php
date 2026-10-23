@@ -46,6 +46,7 @@ class Bunny extends Fieldtype
             libraryId: config('statamic.bunny-stream.library_id'),
             tokenKey: config('statamic.bunny-stream.token_key'),
             tokenExpiry: config('statamic.bunny-stream.token_expiry', 24),
+            startResolution: config('statamic.bunny-stream.playlist_start_resolution'),
         );
     }
 }
