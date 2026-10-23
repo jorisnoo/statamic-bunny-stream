@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.4.0](https://github.com/jorisnoo/statamic-bunny-stream/releases/tag/2.4.0) (2026-10-23)
+
+### Features
+
+- start Safari and iOS playback at up to 720p instead of Bunny's first-listed 360p, by serving the HLS playlist through a site route with the sharpest rendition up to `playlist_start_resolution` first; set it to `null` to link to Bunny directly ([a02716d](https://github.com/jorisnoo/statamic-bunny-stream/commit/a02716ddc114ed58e4de48dc93104d50c421a4d1))
+
 ## [2.3.2](https://github.com/jorisnoo/statamic-bunny-stream/releases/tag/2.3.2) (2026-09-25)
 
 ### Bug Fixes
