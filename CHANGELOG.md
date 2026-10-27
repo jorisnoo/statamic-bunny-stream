@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.4.1](https://github.com/jorisnoo/statamic-bunny-stream/releases/tag/2.4.1) (2026-10-27)
+
+### Bug Fixes
+
+- register the playlist route when Statamic's front-end routes are disabled (`statamic.routes.enabled` is `false`), which made every video throw `Route [bunny.playlist] not defined` since 2.4.0; video URLs fall back to Bunny's playlist if the route is missing ([bf92e0f](https://github.com/jorisnoo/statamic-bunny-stream/commit/bf92e0f0fef1a13cc0eaea9c1fb7911a39f78edd))
+
 ## [2.4.0](https://github.com/jorisnoo/statamic-bunny-stream/releases/tag/2.4.0) (2026-10-23)
 
 ### Features
