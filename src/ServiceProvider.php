@@ -3,6 +3,7 @@
 namespace Noo\BunnyStream;
 
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Route;
 use Statamic\Facades\CP\Nav;
 use Statamic\Facades\Permission;
 use Statamic\Providers\AddonServiceProvider;
@@ -73,5 +74,21 @@ class ServiceProvider extends AddonServiceProvider
         $this->publishes([
             __DIR__ . '/../config/bunny-stream.php' => config_path('statamic/bunny-stream.php'),
         ], 'bunny-stream-config');
+
+        $this->bootPlaylistRoute();
+    }
+
+    /**
+     * Statamic only registers addon web routes when its front-end routes are enabled,
+     * but BunnyVideo links to the playlist route regardless.
+     */
+    protected function bootPlaylistRoute(): void
+    {
+        if (config('statamic.routes.enabled') || $this->app->routesAreCached()) {
+            return;
+        }
+
+        Route::middleware(config('statamic.routes.middleware', 'web'))
+            ->group(__DIR__ . '/../routes/web.php');
     }
 }

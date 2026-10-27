@@ -2,6 +2,7 @@
 
 namespace Noo\BunnyStream\Data;
 
+use Illuminate\Support\Facades\Route;
 use Statamic\Fields\ArrayableString;
 
 class BunnyVideo extends ArrayableString
@@ -24,7 +25,7 @@ class BunnyVideo extends ArrayableString
 
     public function url(): string
     {
-        if ($this->startResolution) {
+        if ($this->startResolution && Route::has('bunny.playlist')) {
             return route('bunny.playlist', $this->guid);
         }
 
