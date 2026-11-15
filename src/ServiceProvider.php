@@ -14,6 +14,10 @@ class ServiceProvider extends AddonServiceProvider
 {
     protected $viewNamespace = 'bunny';
 
+    protected $actions = [
+        Actions\UploadVideo::class,
+    ];
+
     protected $commands = [
         Console\Commands\CleanupCommand::class,
         Console\Commands\BackupCommand::class,

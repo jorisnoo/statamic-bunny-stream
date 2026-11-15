@@ -43,7 +43,7 @@ The field handle, display name, validation, conditions and instructions stay as 
 
 ## 2. Before you start
 
-- [ ] **Check versions:** Statamic 6, PHP 8.3+, and this addon at the version containing the asset integration.
+- [ ] **Check versions:** Statamic 6.34+, PHP 8.3+, and this addon at the version containing the asset integration.
 - [ ] **Rehearse on staging.** Use a copy of production content, blueprints and asset metadata, and run the whole guide there first.
 - [ ] **Allow enough disk space** on the asset disk for every original in the Bunny library, plus temporary space for the largest single video.
 - [ ] **Have a persistent queue.** The database, Redis or SQS driver all work; `sync` does not. You also need to be able to run and stop its workers.

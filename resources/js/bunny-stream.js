@@ -2,6 +2,7 @@ import Field from './fieldtypes/Bunny.vue';
 import AssetField from './fieldtypes/BunnyStream.vue';
 import Overview from './components/Overview.vue';
 import AssetPlayer from './components/player/AssetPlayer.vue';
+import { openAssetUpload } from './utils/assetUpload.js';
 
 // Streamed videos among an Assets field's selection (flagged by the addon's asset hook).
 const streams = (meta) => (meta?.data ?? [])
@@ -13,6 +14,9 @@ Statamic.booting(() => {
     Statamic.$components.register('bunny-fieldtype', Field);
     Statamic.$components.register('bunny_stream-fieldtype', AssetField);
     Statamic.$components.register('bunny-asset-player', AssetPlayer);
+
+    // Run by the "Upload Video" action in the asset browser's container menu.
+    Statamic.$callbacks.add('bunnyStreamUpload', openAssetUpload);
 
     Statamic.$fieldActions.add('assets-fieldtype', {
         title: __('Play video'),

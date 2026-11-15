@@ -16,7 +16,7 @@ Bunny Stream is a Statamic addon that integrates the Bunny Stream API for single
 ## Requirements
 
 - PHP 8.3+
-- Statamic 6
+- Statamic 6.34+
 
 ## Bunny Account Required
 
@@ -183,7 +183,15 @@ Streamed videos use their Bunny thumbnail in the asset browser and in Assets fie
 
 Use a persistent Laravel queue connection, such as database or Redis. The configured `queue` is a queue **name**, not a connection. Run its workers continuously. Upload jobs allow one hour; set the connection's `retry_after` (or SQS visibility timeout) above 3660 seconds and the worker timeout to 3600 seconds. After upload, the job checks Bunny's encoding status once a minute for up to 12 hours. Queue failures remain visible in the asset editor and Laravel's failed-job tooling. The CP status display polls for up to ten minutes; refresh to continue monitoring long encodes.
 
-Configure PHP, your web server/proxy, and Statamic's upload limits for the largest original you expect. Back up both the asset disk and its `.meta` files. Originals inherit the disk's access policy; use a private disk when originals must not be publicly downloadable. Bunny iframe signing does not change asset-disk visibility.
+### Uploading videos
+
+Upload videos as you would any other asset: with Statamic's **Upload** button, by drag and drop, or inside an Assets field. Every video that lands in an enabled container is sent to Bunny automatically by a queued job. These uploads pass through PHP and your web server first, so they are bound by their upload limits.
+
+As an extra, the asset browser's container menu (the ⋯ button next to **Upload**) offers **Upload Video**. It sends the file from the browser straight to Bunny in resumable chunks, so your server's upload limits do not apply. A queued job then copies the video into the folder you had open, and it appears as an asset with its stream already attached. Reload the asset browser after a few minutes to see it.
+
+The menu item needs the container's upload permission. The copy is the original file when the Bunny library keeps originals, otherwise its best MP4 rendition, which needs **MP4 fallback** enabled in Bunny. If the library offers neither, the copy fails in the queue and the video stays in Bunny only.
+
+For ordinary uploads, configure PHP, your web server/proxy, and Statamic's upload limits for the largest original you expect. Back up both the asset disk and its `.meta` files. Originals inherit the disk's access policy; use a private disk when originals must not be publicly downloadable. Bunny iframe signing does not change asset-disk visibility.
 
 Reuploads retain the previous stream until the replacement is ready. Renames retain stream identity. Once `asset_containers` is set, remote cleanup is queued, retryable, and disabled by default, including the legacy dashboard's delete endpoint. With no asset containers configured, the dashboard deletes immediately as before. Enable it only after every consumer of the library has migrated. A delete job refuses to remove a GUID still owned by another asset. Turning cleanup on does not retroactively delete videos retained while it was off.
 

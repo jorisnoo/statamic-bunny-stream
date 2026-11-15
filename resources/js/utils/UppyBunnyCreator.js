@@ -10,6 +10,10 @@ class UppyBunnyCreator extends BasePlugin {
     }
 
     create(file) {
+        if (this.opts.create) {
+            return this.opts.create(file);
+        }
+
         return api.post(this.opts.endpoint, {
             title: file.meta.name,
             thumbnailTime: this.getMsFromTime(file.meta.thumbTime),
@@ -25,13 +29,13 @@ class UppyBunnyCreator extends BasePlugin {
             }
 
             try {
-                const { guid, upload } = await this.create(file);
+                const { guid, upload, title } = await this.create(file);
 
                 this.uppy.setFileMeta(fileID, {
                     bunnyId: guid,
                     bunnyUpload: upload,
                     filetype: file.type,
-                    title: file.meta.name,
+                    title: title ?? file.meta.name,
                 });
             } catch (error) {
                 throw new Error(__('Upload failed for :file: :details', {

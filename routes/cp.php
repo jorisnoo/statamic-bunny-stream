@@ -30,3 +30,7 @@ Route::middleware('can:manage bunny videos')->name('bunny.cp.')->group(function 
 });
 
 Route::match(['get', 'post'], '/bunny/asset-stream', \Noo\BunnyStream\Http\Controllers\Cp\AssetStreamController::class)->name('bunny.cp.asset');
+
+// Large uploads into asset containers, gated by each container's own upload permission.
+Route::post('/bunny/asset-upload', [\Noo\BunnyStream\Http\Controllers\Cp\AssetUploadController::class, 'store'])->name('bunny.cp.assetUpload');
+Route::post('/bunny/asset-upload/{guid}', [\Noo\BunnyStream\Http\Controllers\Cp\AssetUploadController::class, 'complete'])->whereUuid('guid');

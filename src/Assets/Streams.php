@@ -4,6 +4,7 @@ namespace Noo\BunnyStream\Assets;
 
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
+use Noo\BunnyStream\BunnyClient;
 use Noo\BunnyStream\Data\BunnyVideo;
 use Noo\BunnyStream\Jobs\DeleteVideo;
 use Noo\BunnyStream\Jobs\SyncVideo;
@@ -123,6 +124,36 @@ class Streams
             // Allow Statamic's replacement/reference events to finish before checking ownership.
             DeleteVideo::dispatch($guid, $library)->delay(now()->addMinute())->onQueue(config('statamic.bunny-stream.queue', 'default'));
         }
+    }
+
+    /**
+     * Download a video's source from Bunny into $temp: the original when Bunny kept a file
+     * Statamic treats as video, otherwise the best MP4 rendition.
+     *
+     * @return array{string, string} provenance ('original' or 'derivative') and file extension
+     */
+    public static function fetchSource(BunnyClient $bunny, string $guid, string $temp, array $video): array
+    {
+        $source = $bunny->downloadSource($guid, $temp, $video);
+        $mime = (new \finfo(FILEINFO_MIME_TYPE))->file($temp);
+        // Only formats Statamic treats as video, so the asset editor shows the stream.
+        $extensions = ['video/mp4' => 'mp4', 'video/quicktime' => 'mov', 'video/webm' => 'webm',
+            'video/x-matroska' => 'mkv', 'video/mpeg' => 'mpeg'];
+        if ($source === 'original' && ! isset($extensions[$mime])) {
+            // e.g. an AVI or WMV original: keep Bunny's MP4 rendition instead.
+            $bunny->download($guid, $temp, $video);
+            $source = 'derivative';
+            $mime = (new \finfo(FILEINFO_MIME_TYPE))->file($temp);
+        }
+        if (! filesize($temp) || ! isset($extensions[$mime])) {
+            throw new \RuntimeException('Download is not a supported video file ('.$mime.'). Statamic recognizes '.implode(', ', \Statamic\Assets\Asset::VIDEO_EXTENSIONS).'.');
+        }
+        $analysis = (new \getID3)->analyze($temp);
+        if (! empty($analysis['error']) || empty($analysis['video']['resolution_x']) || empty($analysis['playtime_seconds'])) {
+            throw new \RuntimeException('The downloaded video is corrupt or cannot be inspected.');
+        }
+
+        return [$source, $extensions[$mime]];
     }
 
     public static function video(?array $data): ?BunnyVideo

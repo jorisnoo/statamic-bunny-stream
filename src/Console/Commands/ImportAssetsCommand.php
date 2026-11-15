@@ -71,25 +71,8 @@ class ImportAssetsCommand extends Command
                 if ($this->option('dry-run')) { $this->line('Import '.$guid.' — '.($video['title'] ?? 'Untitled')); continue; }
                 $temp = tempnam(sys_get_temp_dir(), 'bunny-import-');
                 try {
-                    $source = $bunny->downloadSource($guid, $temp, $video);
-                    $mime = (new \finfo(FILEINFO_MIME_TYPE))->file($temp);
-                    // Only formats Statamic treats as video, so the asset editor shows the stream.
-                    $extensions = ['video/mp4' => 'mp4', 'video/quicktime' => 'mov', 'video/webm' => 'webm',
-                        'video/x-matroska' => 'mkv', 'video/mpeg' => 'mpeg'];
-                    if ($source === 'original' && ! isset($extensions[$mime])) {
-                        // e.g. an AVI or WMV original: keep Bunny's MP4 rendition instead.
-                        $bunny->download($guid, $temp, $video);
-                        $source = 'derivative';
-                        $mime = (new \finfo(FILEINFO_MIME_TYPE))->file($temp);
-                    }
-                    if (! filesize($temp) || ! isset($extensions[$mime])) {
-                        throw new \RuntimeException('Download is not a supported video file ('.$mime.'). Statamic recognizes '.implode(', ', \Statamic\Assets\Asset::VIDEO_EXTENSIONS).'.');
-                    }
-                    $analysis = (new \getID3)->analyze($temp);
-                    if (! empty($analysis['error']) || empty($analysis['video']['resolution_x']) || empty($analysis['playtime_seconds'])) {
-                        throw new \RuntimeException('The downloaded video is corrupt or cannot be inspected.');
-                    }
-                    $path = 'bunny-stream/'.$library.'/'.$guid.'.'.$extensions[$mime];
+                    [$source, $extension] = Streams::fetchSource($bunny, $guid, $temp, $video);
+                    $path = 'bunny-stream/'.$library.'/'.$guid.'.'.$extension;
                     $disk = $container->disk();
                     $checksum = hash_file('sha256', $temp);
                     $record = $manifest[$guid] ?? [];

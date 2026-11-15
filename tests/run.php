@@ -508,4 +508,65 @@ check(Asset::find('videos::bunny-stream/123/'.$repairGuid.'.mp4')->get('bunny_st
 $recovered = Asset::find('videos::film-lost.mp4')->get('bunny_stream');
 check($recovered['guid'] === $titledGuid && $recovered['generation'] === 'cccccccc-3333-4333-8333-cccccccccccc', 'repair restores synced videos by title and generation');
 check(Asset::find('videos::twice.mp4')->get('bunny_stream') === null && str_contains($output, 'twice.mp4: 2 possible'), 'repair leaves ambiguous matches alone: '.$output);
+// Large uploads go from the browser to Bunny; a queued job then copies the video into the container.
+Statamic\Facades\Role::make('uploader')->title('Uploader')->permissions(['access cp', 'view videos assets', 'upload videos assets'])->save();
+$uploader = Statamic\Facades\User::make()->email('uploader@example.test')->assignRole('uploader');
+$uploader->save();
+$uploadGuid = '44444444-4444-4444-8444-444444444444';
+$uploadFake = new class($uploadGuid) extends BunnyClient {
+    public array $titles = [];
+    public int $status = 3;
+    public bool $original = false;
+    public function __construct(private $guid) {}
+    public function create(string $title, int $thumbnailTime = 0): array { $this->titles[] = $title; return ['guid' => $this->guid]; }
+    public function video(string $guid): array { return ['guid' => $guid, 'status' => $this->status, 'availableResolutions' => '']; }
+    public function downloadOriginal(string $guid, string $sinkPath): void {
+        if (! $this->original) {
+            throw new Illuminate\Http\Client\RequestException(new Illuminate\Http\Client\Response(new GuzzleHttp\Psr7\Response(404)));
+        }
+        copy(__DIR__.'/fixtures/video.mp4', $sinkPath);
+    }
+};
+$container->disk()->makeDirectory('films');
+$uploadRequest = function ($user, $input) use ($uploadFake) {
+    $app = app();
+    $app['auth']->setUser($user);
+    $request = Illuminate\Http\Request::create('/bunny/asset-upload', 'POST', $input);
+    $request->setUserResolver(fn () => $user);
+
+    return (new Noo\BunnyStream\Http\Controllers\Cp\AssetUploadController($request))->store($request, $uploadFake);
+};
+try { $uploadRequest($viewer, ['container' => 'videos', 'folder' => 'films', 'filename' => 'My Film.mov']); throw new RuntimeException('Unauthorized upload accepted'); }
+catch (Statamic\Exceptions\AuthorizationException $e) { check($uploadFake->titles === [], 'large uploads require the container upload permission'); }
+try { $uploadRequest($uploader, ['container' => 'videos', 'folder' => '../outside', 'filename' => 'My Film.mov']); throw new RuntimeException('Traversal accepted'); }
+catch (Symfony\Component\HttpKernel\Exception\HttpException $e) { check($e->getStatusCode() === 422 && $uploadFake->titles === [], 'large uploads reject folders outside the container'); }
+$ticket = $uploadRequest($uploader, ['container' => 'videos', 'folder' => 'films', 'filename' => 'My Film.mov']);
+check($ticket['guid'] === $uploadGuid && isset($ticket['upload']['signature']) && preg_match('/^my-film\.mov \[[0-9a-f-]{36}\]$/', $ticket['title']), 'large upload creates a signed Bunny video titled for repair');
+$uploads = new Noo\BunnyStream\Http\Controllers\Cp\AssetUploadController(Illuminate\Http\Request::create('/'));
+$pushed = Queue::pushed(Noo\BunnyStream\Jobs\ImportVideo::class)->count();
+$uploads->complete($uploadGuid);
+check(Queue::pushed(Noo\BunnyStream\Jobs\ImportVideo::class)->count() === $pushed + 1, 'a finished upload queues its copy into the container');
+try { $uploads->complete($uploadGuid); throw new RuntimeException('Upload completed twice'); }
+catch (Symfony\Component\HttpKernel\Exception\NotFoundHttpException $e) { check(true, 'an upload can only be completed once'); }
+$importJob = Queue::pushed(Noo\BunnyStream\Jobs\ImportVideo::class)->last();
+$importJob->handle($uploadFake);
+check(Asset::find('videos::films/my-film.mp4') === null && Asset::find('videos::films/my-film.mov') === null, 'the copy waits while Bunny has no source to serve');
+$uploadFake->original = true;
+$pushed = Queue::pushed(SyncVideo::class)->count();
+$events = [];
+Illuminate\Support\Facades\Event::listen(Statamic\Events\AssetSaved::class, function ($e) use (&$events) { $events[] = $e->asset->id(); });
+$importJob->handle($uploadFake);
+$uploaded = Asset::find('videos::films/my-film.mp4');
+$record = $uploaded?->get('bunny_stream');
+check($uploaded && $record['guid'] === $uploadGuid && $record['source'] === 'original' && $record['state'] === 'remote_unready', 'the uploaded video becomes an asset that keeps its stream');
+check($uploaded->disk()->get($uploaded->path()) === file_get_contents(__DIR__.'/fixtures/video.mp4'), 'the asset stores the original file');
+check(Queue::pushed(SyncVideo::class)->count() === $pushed + 1 && $events === [$uploaded->id()], 'the new asset announces itself and polls encoding once');
+$importJob->handle($uploadFake);
+check($container->disk()->getFiles('films')->count() === 1, 'a redelivered copy does not duplicate the asset');
+$uploadFake->status = 4;
+Queue::pushed(SyncVideo::class)->last()->handle($uploadFake);
+check(Asset::find($uploaded->id())->get('bunny_stream')['state'] === 'ready', 'the uploaded asset becomes ready without a second upload');
+$action = new Noo\BunnyStream\Actions\UploadVideo;
+$app->instance(BunnyClient::class, new BunnyClient);
+check($action->visibleTo($container) && ! $action->visibleTo($uploaded) && $action->authorize($uploader, $container) && ! $action->authorize($viewer, $container), 'the upload action shows on enabled containers for users who may upload');
 echo "All checks passed.\n";
