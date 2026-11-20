@@ -6,3 +6,12 @@
 @import "tailwindcss/theme.css" layer(theme) prefix(tw);
 @import "tailwindcss/utilities.css" layer(utilities) prefix(tw);
 @source "../js/**/*.vue";
+
+/* Asset editor: the Bunny Stream field moves into the preview area (fieldtypes/BunnyStream.vue). */
+.editor-preview:has(> .bunny-asset-preview--replaces) > div:has(> video) {
+    display: none;
+}
+
+.bunny_stream-fieldtype:has([data-bunny-stream-moved]) {
+    display: none;
+}
