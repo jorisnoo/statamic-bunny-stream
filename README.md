@@ -177,7 +177,7 @@ Enable existing asset containers in `config/statamic/bunny-stream.php`:
 'show_dashboard' => true,
 ```
 
-Editors upload originals to these containers and select them with ordinary Assets fields in entries, Bard, and Replicator. Video uploads queue a transfer to Bunny. The asset editor automatically gains a **Bunny Stream** field with status, encoding progress, retry, custom thumbnails, and the optional chapter tools. Its poster opens the full Bunny player, with chapter shortcuts.
+Editors upload originals to these containers and select them with ordinary Assets fields in entries, Bard, and Replicator. Video uploads queue a transfer to Bunny. In the asset editor, the Bunny player takes the place of the file preview, with status, encoding progress, retry, custom thumbnails, and the optional chapter tools beneath it.
 
 Streamed videos use their Bunny thumbnail in the asset browser and in Assets fields, without needing ffmpeg. Assets fields that contain streamed videos also get a **Play video** action, which opens the player (with a playlist when the field holds several videos) without leaving the entry. The legacy Bunny field shows a playable preview of the selected video as well. Images and other files are unaffected. Metadata is managed by the integration; editing the form cannot replace remote GUIDs.
 
@@ -187,9 +187,9 @@ Use a persistent Laravel queue connection, such as database or Redis. The config
 
 Upload videos as you would any other asset: with Statamic's **Upload** button, by drag and drop, or inside an Assets field. Every video that lands in an enabled container is sent to Bunny automatically by a queued job. These uploads pass through PHP and your web server first, so they are bound by their upload limits.
 
-As an extra, the asset browser's container menu (the ⋯ button next to **Upload**) offers **Upload Video**. It sends the file from the browser straight to Bunny in resumable chunks, so your server's upload limits do not apply. A queued job then copies the video into the folder you had open, and it appears as an asset with its stream already attached. Reload the asset browser after a few minutes to see it.
+As an extra, enabled containers get an **Upload Video** button next to **Upload** in the asset browser (it is also in the container's ⋯ menu). It sends the file from the browser straight to Bunny in resumable chunks, so your server's upload limits do not apply. As soon as a file is uploaded, it appears as an asset in the folder you had open (reload the asset browser to see it), with a "Processing video…" thumbnail. Editors can pick it in Assets fields straight away. Until a queued job has copied the source back from Bunny, the asset's file is an empty placeholder, so its direct URL serves nothing. If Bunny serves another format than the one uploaded (its MP4 when it kept no original, for example), the asset is renamed to the new extension and references to it are updated.
 
-The menu item needs the container's upload permission. The copy is the original file when the Bunny library keeps originals, otherwise its best MP4 rendition, which needs **MP4 fallback** enabled in Bunny. If the library offers neither, the copy fails in the queue and the video stays in Bunny only.
+The button needs the container's upload permission. The copy is the original file when the Bunny library keeps originals, otherwise its best MP4 rendition, which needs **MP4 fallback** enabled in Bunny. If the library offers neither, the copy fails in the queue and the video stays in Bunny only.
 
 For ordinary uploads, configure PHP, your web server/proxy, and Statamic's upload limits for the largest original you expect. Back up both the asset disk and its `.meta` files. Originals inherit the disk's access policy; use a private disk when originals must not be publicly downloadable. Bunny iframe signing does not change asset-disk visibility.
 

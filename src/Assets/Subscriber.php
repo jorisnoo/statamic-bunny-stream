@@ -14,11 +14,13 @@ class Subscriber
             Streams::queueFromEvent($e->newAsset);
             $old = $e->originalAsset->get('bunny_stream', []);
             $data = $e->newAsset->get('bunny_stream', []);
-            if (! $e->originalAsset->exists() && ! empty($old['guid']) && ! empty($data)
+            // Look it up: a deleted Eloquent asset still reports exists() through its stale model.
+            $deleted = ! \Statamic\Facades\Asset::find($e->originalAsset->id());
+            if ($deleted && ! empty($old['guid']) && ! empty($data)
                 && empty($data['guid']) && ($old['library_id'] ?? null) === ($data['library_id'] ?? null)) {
                 $e->newAsset->set('bunny_stream', array_merge($data, ['guid' => $old['guid'], 'metadata' => $old['metadata'] ?? []]))->saveQuietly();
             }
-            if (! $e->originalAsset->exists() && isset($old['library_id'], $data['library_id']) && $old['library_id'] === $data['library_id']) {
+            if ($deleted && isset($old['library_id'], $data['library_id']) && $old['library_id'] === $data['library_id']) {
                 $latest = $e->newAsset->get('bunny_stream');
                 $latest['legacy_guids'] = array_values(array_unique(array_filter(array_merge($latest['legacy_guids'] ?? [], $old['legacy_guids'] ?? [], [$old['guid'] ?? null]))));
                 $e->newAsset->set('bunny_stream', $latest)->saveQuietly();

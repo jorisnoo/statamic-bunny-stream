@@ -7,6 +7,25 @@
 @import "tailwindcss/utilities.css" layer(utilities) prefix(tw);
 @source "../js/**/*.vue";
 
+/* Match the CP: class-based dark mode and its themeable grays. */
+@custom-variant dark (&:where(.dark, .dark *));
+@theme inline {
+    --color-gray-50: var(--theme-color-gray-50);
+    --color-gray-100: var(--theme-color-gray-100);
+    --color-gray-150: var(--theme-color-gray-150);
+    --color-gray-200: var(--theme-color-gray-200);
+    --color-gray-300: var(--theme-color-gray-300);
+    --color-gray-400: var(--theme-color-gray-400);
+    --color-gray-500: var(--theme-color-gray-500);
+    --color-gray-600: var(--theme-color-gray-600);
+    --color-gray-700: var(--theme-color-gray-700);
+    --color-gray-800: var(--theme-color-gray-800);
+    --color-gray-850: var(--theme-color-gray-850);
+    --color-gray-900: var(--theme-color-gray-900);
+    --color-gray-925: var(--theme-color-gray-925);
+    --color-gray-950: var(--theme-color-gray-950);
+}
+
 /* Asset editor: the Bunny Stream field moves into the preview area (fieldtypes/BunnyStream.vue). */
 .editor-preview:has(> .bunny-asset-preview--replaces) > div:has(> video) {
     display: none;

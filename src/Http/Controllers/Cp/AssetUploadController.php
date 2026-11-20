@@ -7,15 +7,18 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 use Noo\BunnyStream\Assets\Streams;
 use Noo\BunnyStream\BunnyClient;
-use Noo\BunnyStream\Jobs\ImportVideo;
 use Statamic\Assets\AssetUploader;
 use Statamic\Contracts\Assets\Asset as AssetContract;
+use Statamic\Events\AssetCreated;
+use Statamic\Events\AssetSaved;
+use Statamic\Facades\Asset;
 use Statamic\Facades\AssetContainer;
 use Statamic\Http\Controllers\CP\CpController;
 
 /**
  * Video uploads for asset containers: the browser sends the file straight to Bunny,
- * then a queued job copies it into the container.
+ * the asset is created at once with an empty placeholder file, and a queued job
+ * copies the source into it.
  */
 class AssetUploadController extends CpController
 {
@@ -50,12 +53,30 @@ class AssetUploadController extends CpController
 
     public function complete(string $guid)
     {
-        abort_unless($upload = Cache::pull('bunny-stream:upload:'.$guid), 404);
-        $this->container($upload['container']);
-        ImportVideo::dispatch($guid, $upload['container'], $upload['folder'], $upload['basename'], $upload['generation'])
-            ->onQueue(config('statamic.bunny-stream.queue', 'default'));
+        abort_unless($upload = Cache::get($key = 'bunny-stream:upload:'.$guid), 404);
+        $container = $this->container($upload['container']);
+        abort_if($upload['folder'] !== '' && ! $container->disk()->filesystem()->directoryExists($upload['folder']), 422, 'Unknown folder.');
 
-        return response()->noContent();
+        // Keep the extension when the import can store the original as it is; otherwise it gets Bunny's MP4.
+        $extension = strtolower(pathinfo($upload['basename'], PATHINFO_EXTENSION));
+        if (! in_array($extension, Streams::SOURCE_EXTENSIONS, true)) {
+            $extension = 'mp4';
+        }
+        $path = Streams::availablePath($container->disk(), $upload['folder'], pathinfo($upload['basename'], PATHINFO_FILENAME), $extension);
+        abort_unless($container->disk()->put($path, ''), 500, 'Unable to create the asset.');
+
+        $asset = Asset::make()->container($container)->path($path);
+        // Saved quietly: the saving listener would discard a stream record on a file without metadata.
+        $asset->set('bunny_stream', [
+            'key' => (string) Str::uuid(), 'generation' => $upload['generation'], 'library_id' => (string) config('statamic.bunny-stream.library_id'),
+            'guid' => $guid, 'state' => 'remote_unready', 'placeholder' => true,
+        ])->saveQuietly();
+        AssetSaved::dispatch($asset);
+        AssetCreated::dispatch($asset);
+        Cache::forget($key);
+        Streams::dispatch($asset);
+
+        return ['asset' => $asset->id()];
     }
 
     private function container(string $handle)

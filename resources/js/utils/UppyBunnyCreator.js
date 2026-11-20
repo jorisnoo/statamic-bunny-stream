@@ -38,10 +38,11 @@ class UppyBunnyCreator extends BasePlugin {
                     title: title ?? file.meta.name,
                 });
             } catch (error) {
-                throw new Error(__('Upload failed for :file: :details', {
+                // Fail only this file: the uploader skips files with an error, the others carry on.
+                this.uppy.emit('error', new Error(__('Upload failed for :file: :details', {
                     file: file.name,
                     details: error.message,
-                }), { cause: error });
+                }), { cause: error }), file);
             }
         });
 

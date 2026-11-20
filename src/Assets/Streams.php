@@ -7,12 +7,17 @@ use Illuminate\Support\Str;
 use Noo\BunnyStream\BunnyClient;
 use Noo\BunnyStream\Data\BunnyVideo;
 use Noo\BunnyStream\Jobs\DeleteVideo;
+use Noo\BunnyStream\Jobs\ImportVideo;
 use Noo\BunnyStream\Jobs\SyncVideo;
 use Statamic\Facades\Asset;
 use Statamic\Facades\AssetContainer;
 
 class Streams
 {
+    // Sources Statamic treats as video, by MIME type; anything else is kept as Bunny's MP4 rendition.
+    public const SOURCE_EXTENSIONS = ['video/mp4' => 'mp4', 'video/quicktime' => 'mov', 'video/webm' => 'webm',
+        'video/x-matroska' => 'mkv', 'video/mpeg' => 'mpeg'];
+
     public static function enabled($asset): bool
     {
         return $asset->isVideo() && in_array($asset->containerHandle(), config('statamic.bunny-stream.asset_containers', []), true);
@@ -32,12 +37,12 @@ class Streams
     // The stored value, re-read so writes from queue workers since this request loaded the asset win.
     public static function persisted($asset): ?array
     {
+        // Database-backed asset drivers keep no .meta file; the Eloquent driver's metaPath() is the asset file itself.
         $disk = $asset->disk();
-        if ($disk->exists($path = $asset->metaPath())) {
+        if (($path = $asset->metaPath()) !== $asset->path() && $disk->exists($path)) {
             return \Statamic\Facades\YAML::parse($disk->get($path))['data']['bunny_stream'] ?? null;
         }
 
-        // Database-backed asset drivers keep no .meta file.
         return $asset->getOriginal('data.bunny_stream');
     }
 
@@ -81,6 +86,7 @@ class Streams
             'library_id' => (string) config('statamic.bunny-stream.library_id'),
             'state' => 'queued',
             'pending_guid' => null,
+            'placeholder' => null,
             'error' => null,
             'source' => 'original',
             'legacy_guids' => array_values(array_unique(array_filter(array_merge($data['legacy_guids'] ?? [], [$data['guid'] ?? null])))),
@@ -105,7 +111,9 @@ class Streams
     {
         self::requireQueue();
         $data = $asset->get('bunny_stream');
-        SyncVideo::dispatch($asset->id(), $data['key'], $data['generation'])
+        // A placeholder still needs its file from Bunny; the import then hands over to SyncVideo.
+        $job = empty($data['placeholder']) ? SyncVideo::class : ImportVideo::class;
+        $job::dispatch($asset->id(), $data['key'], $data['generation'])
             ->delay($delay)
             ->onQueue(config('statamic.bunny-stream.queue', 'default'));
     }
@@ -137,8 +145,7 @@ class Streams
         $source = $bunny->downloadSource($guid, $temp, $video);
         $mime = (new \finfo(FILEINFO_MIME_TYPE))->file($temp);
         // Only formats Statamic treats as video, so the asset editor shows the stream.
-        $extensions = ['video/mp4' => 'mp4', 'video/quicktime' => 'mov', 'video/webm' => 'webm',
-            'video/x-matroska' => 'mkv', 'video/mpeg' => 'mpeg'];
+        $extensions = self::SOURCE_EXTENSIONS;
         if ($source === 'original' && ! isset($extensions[$mime])) {
             // e.g. an AVI or WMV original: keep Bunny's MP4 rendition instead.
             $bunny->download($guid, $temp, $video);
@@ -154,6 +161,15 @@ class Streams
         }
 
         return [$source, $extensions[$mime]];
+    }
+
+    // A path in $folder for a new file, suffixed with the time when the name is taken.
+    public static function availablePath($disk, string $folder, string $name, string $extension): string
+    {
+        $folder = $folder === '.' ? '' : trim($folder, '/');
+        $path = ltrim($folder.'/'.$name.'.'.$extension, '/');
+
+        return $disk->exists($path) ? ltrim($folder.'/'.$name.'-'.time().'.'.$extension, '/') : $path;
     }
 
     public static function video(?array $data): ?BunnyVideo

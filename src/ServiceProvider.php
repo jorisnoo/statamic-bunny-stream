@@ -68,6 +68,15 @@ class ServiceProvider extends AddonServiceProvider
         });
     }
 
+    public static function processingThumbnail(): string
+    {
+        $text = htmlspecialchars(__('Processing video…'), ENT_XML1);
+        $svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 180"><rect width="320" height="180" fill="#3f3f46"/>'
+            .'<text x="160" y="96" fill="#e4e4e7" font-family="system-ui, sans-serif" font-size="18" text-anchor="middle">'.$text.'</text></svg>';
+
+        return 'data:image/svg+xml;base64,'.base64_encode($svg);
+    }
+
     public static function registerAssetHooks(): void
     {
         // Show Bunny's (custom) thumbnail for streamed videos in the asset browser,
@@ -75,14 +84,17 @@ class ServiceProvider extends AddonServiceProvider
         $hook = function ($payload, $next) {
             $asset = $this->resource;
             if ($asset instanceof \Statamic\Contracts\Assets\Asset && Assets\Streams::enabled($asset)) {
-                $video = Assets\Streams::video($asset->get('bunny_stream'));
+                $data = $asset->get('bunny_stream') ?? [];
+                $video = Assets\Streams::video($data);
+                // Until its first encode is done, Bunny has neither a thumbnail nor a playable stream.
+                $encoding = $video && ($data['state'] ?? null) !== 'ready' && (($data['pending_guid'] ?? null) ?: $data['guid']) === $data['guid'];
                 if ($video) {
-                    $payload->data->thumbnail = $video->thumbnail();
+                    $payload->data->thumbnail = $encoding ? ServiceProvider::processingThumbnail() : $video->thumbnail();
                 }
                 // Lets the "Play video" field action find streams among an Assets field's selection.
                 $payload->data->bunny_stream = [
-                    'playable' => (bool) $video,
-                    'state' => $asset->get('bunny_stream')['state'] ?? 'not_synced',
+                    'playable' => $video && ! $encoding,
+                    'state' => $data['state'] ?? 'not_synced',
                     'endpoint' => cp_route('bunny.cp.asset'),
                 ];
             }
@@ -93,6 +105,20 @@ class ServiceProvider extends AddonServiceProvider
             \Statamic\Http\Resources\CP\Assets\AssetsFieldtypeAsset::class] as $resource) {
             $resource::hook('asset', $hook);
         }
+    }
+
+    public static function provideUploadButton(): void
+    {
+        // Containers that get the asset browser's "Upload Video" button: those where the action is offered.
+        Statamic::provideToScript(['bunnyStreamUpload' => function () {
+            $user = User::current();
+            $action = new Actions\UploadVideo;
+            $containers = $user ? \Statamic\Facades\AssetContainer::all()
+                ->filter(fn ($container) => $action->visibleTo($container) && $action->authorize($user, $container))
+                ->map->handle()->values()->all() : [];
+
+            return $containers ? ['containers' => $containers, 'endpoint' => cp_route('bunny.cp.assetUpload')] : null;
+        }]);
     }
 
     public static function protectAssetMetadata(): void
@@ -114,6 +140,7 @@ class ServiceProvider extends AddonServiceProvider
         static::protectAssetMetadata();
         static::registerGates();
         static::registerAssetHooks();
+        static::provideUploadButton();
 
         Permission::extend(function () {
             Permission::group('bunny-stream', __('Bunny Stream'), function () {
