@@ -3,15 +3,17 @@ return [
     // Existing asset containers whose video uploads should be sent to Bunny.
     'asset_containers' => [],
 
-    // Queue name (not a connection) for uploads and encoding polls. The default
-    // queue connection must be persistent (not sync), with workers on this queue.
+    // The persistent connection used by video jobs; null uses the app default.
+    'queue_connection' => null,
+
+    // Queue name (not a connection) for uploads and encoding polls.
     'queue' => 'default',
 
     // Keep remote videos during migration, including videos used by legacy fields.
     // Enable only after every consumer of this library has migrated.
     'delete_remote' => false,
 
-    // Hide after legacy fields have been migrated. Their endpoints remain available.
+    // Disable the legacy browser menu and page. The legacy field picker still works.
     'show_dashboard' => true,
 
     // The unique identifier for your Bunny Stream library.

@@ -36,6 +36,9 @@ class References extends DataReferenceUpdater
                 throw new \RuntimeException('Unsupported nested fieldtype '.$field->type().' at '.$field->handle());
             }
             if (! $library = $field->get('bunny_stream_migrated')) { continue; }
+            if ($library === true) {
+                $library = config('statamic.bunny-stream.library_id');
+            }
             if ($field->type() !== 'assets' || $field->get('max_files') !== 1) {
                 throw new \RuntimeException('Remove conflicting fieldset overrides for '.$field->handle().' before migrating.');
             }

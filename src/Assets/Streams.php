@@ -112,14 +112,20 @@ class Streams
         $data = $asset->get('bunny_stream');
         SyncVideo::dispatch($asset->id(), $data['key'], $data['generation'])
             ->delay($delay)
+            ->onConnection(self::queueConnection())
             ->onQueue(config('statamic.bunny-stream.queue', 'default'));
     }
 
     public static function requireQueue(): void
     {
-        if (in_array(config('queue.connections.'.config('queue.default').'.driver'), [null, 'sync', 'null'], true)) {
+        if (in_array(config('queue.connections.'.self::queueConnection().'.driver'), [null, 'sync', 'null'], true)) {
             throw new \RuntimeException('Bunny Stream requires a persistent queue connection.');
         }
+    }
+
+    public static function queueConnection(): string
+    {
+        return config('statamic.bunny-stream.queue_connection') ?? config('queue.default');
     }
 
     public static function delete(?string $guid, string $library): void
@@ -127,7 +133,10 @@ class Streams
         if ($guid && config('statamic.bunny-stream.delete_remote', false)) {
             self::requireQueue();
             // Allow Statamic's replacement/reference events to finish before checking ownership.
-            DeleteVideo::dispatch($guid, $library)->delay(now()->addMinute())->onQueue(config('statamic.bunny-stream.queue', 'default'));
+            DeleteVideo::dispatch($guid, $library)
+                ->delay(now()->addMinute())
+                ->onConnection(self::queueConnection())
+                ->onQueue(config('statamic.bunny-stream.queue', 'default'));
         }
     }
 

@@ -53,6 +53,7 @@ class AssetUploadController extends CpController
         abort_unless($upload = Cache::pull('bunny-stream:upload:'.$guid), 404);
         $this->container($upload['container']);
         ImportVideo::dispatch($guid, $upload['container'], $upload['folder'], $upload['basename'], $upload['generation'])
+            ->onConnection(Streams::queueConnection())
             ->onQueue(config('statamic.bunny-stream.queue', 'default'));
 
         return response()->noContent();

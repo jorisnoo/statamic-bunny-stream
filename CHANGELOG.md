@@ -3,6 +3,8 @@
 ## Unreleased
 
 - Read stream metadata from the database when saving Eloquent assets, without reading the media file as YAML.
+- Make Upload Video a primary asset-browser action and allow video jobs to use a dedicated queue connection.
+- Disable the legacy browser page when its navigation item is hidden.
 
 ## [2.3.2](https://github.com/jorisnoo/statamic-bunny-stream/releases/tag/2.3.2) (2026-09-25)
 

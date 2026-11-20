@@ -11,6 +11,8 @@ class Overview extends CpController
 {
     public function __invoke(BunnyClient $bunny): Response
     {
+        abort_unless(config('statamic.bunny-stream.show_dashboard', true), 404);
+
         return Inertia::render('BunnyOverview', [
             'title' => __('Media Browser'),
             'addon' => [
