@@ -37,20 +37,38 @@ class Streams
     // The stored value, re-read so writes from queue workers since this request loaded the asset win.
     public static function persisted($asset): ?array
     {
-        // Database-backed asset drivers keep no .meta file; the Eloquent driver's metaPath() is the asset file itself.
         $disk = $asset->disk();
-        if (($path = $asset->metaPath()) !== $asset->path() && $disk->exists($path)) {
-            return \Statamic\Facades\YAML::parse($disk->get($path))['data']['bunny_stream'] ?? null;
+        $path = $asset->metaPath();
+        if ($path !== $asset->path()) {
+            return $disk->exists($path) ? (\Statamic\Facades\YAML::parse($disk->get($path))['data']['bunny_stream'] ?? null) : null;
         }
 
-        return $asset->getOriginal('data.bunny_stream');
+        // Database-backed drivers keep no .meta file (the Eloquent driver's metaPath() is the media file).
+        // Read the stored row at the path it was loaded from: a save may be moving the asset.
+        $stored = self::fresh($asset->containerHandle().'::'.($asset->getOriginal('path') ?? $asset->path()));
+
+        return $stored ? $stored->get('bunny_stream') : $asset->getOriginal('data.bunny_stream');
+    }
+
+    /**
+     * The asset as stored now. The Eloquent driver keeps every asset it finds for the rest of
+     * the request or job, so a plain find() would miss what other processes wrote meanwhile.
+     */
+    public static function fresh(?string $id)
+    {
+        if (! $id) {
+            return null;
+        }
+        \Statamic\Facades\Blink::forget('eloquent-asset-'.$id);
+
+        return Asset::find($id);
     }
 
     public static function find(string $id, string $key)
     {
         // Renames change the id; remember where the stream moved so polls skip the scan.
         foreach (array_unique(array_filter([$id, Cache::get('bunny-stream:asset:'.$key)])) as $candidate) {
-            $asset = Asset::find($candidate);
+            $asset = self::fresh($candidate);
             if ($asset && ($asset->get('bunny_stream')['key'] ?? null) === $key) {
                 return $asset;
             }
@@ -120,7 +138,10 @@ class Streams
 
     public static function requireQueue(): void
     {
-        if (in_array(config('queue.connections.'.config('queue.default').'.driver'), [null, 'sync', 'null'], true)) {
+        // Jobs wait for Bunny by releasing and delaying themselves, which sync-style drivers ignore.
+        $driver = config('queue.connections.'.config('queue.default').'.driver');
+        if (in_array($driver, [null, 'sync', 'null', 'deferred', 'background'], true)
+            || app('queue')->connection() instanceof \Illuminate\Queue\SyncQueue) {
             throw new \RuntimeException('Bunny Stream requires a persistent queue connection.');
         }
     }
@@ -140,36 +161,60 @@ class Streams
      *
      * @return array{string, string} provenance ('original' or 'derivative') and file extension
      */
-    public static function fetchSource(BunnyClient $bunny, string $guid, string $temp, array $video): array
+    public static function fetchSource(BunnyClient $bunny, string $guid, string $temp, array $video, bool $original = true): array
     {
-        $source = $bunny->downloadSource($guid, $temp, $video);
-        $mime = (new \finfo(FILEINFO_MIME_TYPE))->file($temp);
-        // Only formats Statamic treats as video, so the asset editor shows the stream.
-        $extensions = self::SOURCE_EXTENSIONS;
-        if ($source === 'original' && ! isset($extensions[$mime])) {
-            // e.g. an AVI or WMV original: keep Bunny's MP4 rendition instead.
+        // $original = false skips an original known to be unusable (e.g. an AVI upload).
+        if ($original) {
+            $source = $bunny->downloadSource($guid, $temp, $video);
+        } else {
             $bunny->download($guid, $temp, $video);
             $source = 'derivative';
-            $mime = (new \finfo(FILEINFO_MIME_TYPE))->file($temp);
         }
-        if (! filesize($temp) || ! isset($extensions[$mime])) {
+        if ($source === 'original') {
+            try {
+                return [$source, self::inspect($temp)];
+            } catch (\RuntimeException) {
+                // e.g. an AVI or WMV original, or one getID3 can't read: keep Bunny's MP4 rendition instead.
+                $bunny->download($guid, $temp, $video);
+                $source = 'derivative';
+            }
+        }
+
+        return [$source, self::inspect($temp)];
+    }
+
+    // The extension of a downloaded video Statamic can show, so the asset editor gets the stream.
+    public static function inspect(string $file): string
+    {
+        $mime = (new \finfo(FILEINFO_MIME_TYPE))->file($file);
+        if (! filesize($file) || ! isset(self::SOURCE_EXTENSIONS[$mime])) {
             throw new \RuntimeException('Download is not a supported video file ('.$mime.'). Statamic recognizes '.implode(', ', \Statamic\Assets\Asset::VIDEO_EXTENSIONS).'.');
         }
-        $analysis = (new \getID3)->analyze($temp);
+        $analysis = (new \getID3)->analyze($file);
         if (! empty($analysis['error']) || empty($analysis['video']['resolution_x']) || empty($analysis['playtime_seconds'])) {
             throw new \RuntimeException('The downloaded video is corrupt or cannot be inspected.');
         }
 
-        return [$source, $extensions[$mime]];
+        return self::SOURCE_EXTENSIONS[$mime];
     }
 
-    // A path in $folder for a new file, suffixed with the time when the name is taken.
-    public static function availablePath($disk, string $folder, string $name, string $extension): string
+    /**
+     * Claim a free path in $folder for a new file, numbering the name when it is taken, and
+     * run $write with it. Uploads finishing at once never get the same path.
+     */
+    public static function claimPath($container, string $folder, string $name, string $extension, callable $write)
     {
         $folder = $folder === '.' ? '' : trim($folder, '/');
-        $path = ltrim($folder.'/'.$name.'.'.$extension, '/');
 
-        return $disk->exists($path) ? ltrim($folder.'/'.$name.'-'.time().'.'.$extension, '/') : $path;
+        return Cache::lock('bunny-stream:paths:'.$container->handle(), 120)->block(60, function () use ($container, $folder, $name, $extension, $write) {
+            $disk = $container->disk();
+            for ($i = 0; ; $i++) {
+                $path = ltrim($folder.'/'.$name.($i ? '-'.$i : '').'.'.$extension, '/');
+                if (! $disk->exists($path) && ! \Statamic\Facades\Asset::find($container->handle().'::'.$path)) {
+                    return $write($path);
+                }
+            }
+        });
     }
 
     public static function video(?array $data): ?BunnyVideo

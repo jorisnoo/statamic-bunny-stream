@@ -25,6 +25,7 @@ class ServiceProvider extends AddonServiceProvider
         Console\Commands\MigrateFieldsCommand::class,
         Console\Commands\RollbackCommand::class,
         Console\Commands\RepairCommand::class,
+        Console\Commands\PruneUploadsCommand::class,
     ];
 
     protected $vite = [
@@ -38,6 +39,14 @@ class ServiceProvider extends AddonServiceProvider
     protected $routes = [
         'cp' => __DIR__ . '/../routes/cp.php',
     ];
+
+    protected function schedule(\Illuminate\Console\Scheduling\Schedule $schedule)
+    {
+        // Uploads abandoned in the browser leave empty videos in Bunny.
+        if (config('statamic.bunny-stream.asset_containers')) {
+            $schedule->command('bunny-stream:prune-uploads')->daily();
+        }
+    }
 
     protected function bootPublishAfterInstall(): self
     {

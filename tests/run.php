@@ -354,6 +354,12 @@ catch (RuntimeException $e) { check(Http::recorded()->count() === $count && str_
 config(['queue.connections.database.driver' => 'sync']);
 try { Streams::requireQueue(); throw new Exception('Sync queue accepted'); }
 catch (RuntimeException $e) { check(str_contains($e->getMessage(), 'persistent'), 'persistent queue is required'); }
+foreach (['deferred', 'background'] as $driver) {
+    config(['queue.connections.database.driver' => $driver]);
+    try { Streams::requireQueue(); throw new Exception(ucfirst($driver).' queue accepted'); }
+    catch (RuntimeException $e) { check(str_contains($e->getMessage(), 'persistent'), $driver.' queues are rejected: they ignore delays and releases'); }
+}
+config(['queue.connections.database.driver' => 'sync']);
 // Upload events keep the stored file and record the problem; retry starts a clean attempt.
 $container->disk()->put('sync.mp4', file_get_contents(__DIR__.'/fixtures/video.mp4'));
 $syncAsset = Asset::make()->container($container)->path('sync.mp4');
@@ -408,8 +414,8 @@ $data = Asset::find($newer->id())->get('bunny_stream');
 check($data['state'] === 'ready' && $data['guid'] === $thirdGuid && ! array_diff([$firstGuid, $secondGuid], $data['legacy_guids']), 'replace swaps to the new stream and keeps old GUIDs resolvable');
 // The Eloquent driver's metaPath() is the media file itself, which must never be parsed as metadata.
 $dbAsset = new class extends Statamic\Assets\Asset { public function metaPath() { return $this->path(); } };
-$dbAsset->container($container)->path('newer.mp4')->set('bunny_stream', ['state' => 'ready'])->syncOriginal();
-check(Streams::persisted($dbAsset) === ['state' => 'ready'], 'database-backed assets read their stored stream, not the media file');
+$dbAsset->container($container)->path('newer.mp4')->set('bunny_stream', ['state' => 'stale'])->syncOriginal();
+check(Streams::persisted($dbAsset) === Asset::find('videos::newer.mp4')->get('bunny_stream'), 'database-backed assets read their stored stream, not the media file');
 // Without asset containers the dashboard keeps deleting immediately.
 config(['statamic.bunny-stream.asset_containers' => [], 'statamic.bunny-stream.delete_remote' => false]);
 $deletes = [];
@@ -555,10 +561,16 @@ $uploadFake = new class($uploadGuid) extends BunnyClient {
     public array $titles = [];
     public int $status = 3;
     public bool $original = false;
+    public int $downloads = 0;
+    public array $deleted = [];
+    public $onDownload = null;
     public function __construct(private $guid) {}
+    public function delete(string $guid): void { $this->deleted[] = $guid; }
     public function create(string $title, int $thumbnailTime = 0): array { $this->titles[] = $title; return ['guid' => $this->guid]; }
     public function video(string $guid): array { return ['guid' => $guid, 'status' => $this->status, 'availableResolutions' => '']; }
     public function downloadOriginal(string $guid, string $sinkPath): void {
+        $this->downloads++;
+        if ($this->onDownload) { ($this->onDownload)(); }
         if (! $this->original) {
             throw new Illuminate\Http\Client\RequestException(new Illuminate\Http\Client\Response(new GuzzleHttp\Psr7\Response(404)));
         }
@@ -581,15 +593,19 @@ catch (Symfony\Component\HttpKernel\Exception\HttpException $e) { check($e->getS
 $ticket = $uploadRequest($uploader, ['container' => 'videos', 'folder' => 'films', 'filename' => 'My Film.mov']);
 check($ticket['guid'] === $uploadGuid && isset($ticket['upload']['signature']) && preg_match('/^my-film\.mov \[[0-9a-f-]{36}\]$/', $ticket['title']), 'large upload creates a signed Bunny video titled for repair');
 $uploads = new Noo\BunnyStream\Http\Controllers\Cp\AssetUploadController(Illuminate\Http\Request::create('/'));
+$as = fn ($user) => tap(Illuminate\Http\Request::create('/'), fn ($request) => $request->setUserResolver(fn () => $user));
 $pushed = Queue::pushed(Noo\BunnyStream\Jobs\ImportVideo::class)->count();
-$created = $uploads->complete($uploadGuid);
+$created = $uploads->complete($as($uploader), $uploadGuid);
 $placeholder = Asset::find('videos::films/my-film.mov');
 check($created['asset'] === 'videos::films/my-film.mov' && $placeholder->get('bunny_stream')['placeholder'] && $placeholder->get('bunny_stream')['guid'] === $uploadGuid
     && $placeholder->disk()->exists($placeholder->path()) && $placeholder->disk()->size($placeholder->path()) === 0, 'a finished upload creates its asset at once, with an empty placeholder file');
 check(Queue::pushed(Noo\BunnyStream\Jobs\ImportVideo::class)->count() === $pushed + 1 && Queue::pushed(SyncVideo::class)->filter(fn ($job) => $job->assetId === $placeholder->id())->isEmpty(), 'the placeholder queues its copy from Bunny, not an upload');
 check(($thumbnails($placeholder, Statamic\Http\Resources\CP\Assets\FolderAsset::class)['thumbnail'] ?? null) === Noo\BunnyStream\ServiceProvider::processingThumbnail(), 'the placeholder shows a processing thumbnail until Bunny has one');
-try { $uploads->complete($uploadGuid); throw new RuntimeException('Upload completed twice'); }
-catch (Symfony\Component\HttpKernel\Exception\NotFoundHttpException $e) { check(true, 'an upload can only be completed once'); }
+$imports = Queue::pushed(Noo\BunnyStream\Jobs\ImportVideo::class)->count();
+check($uploads->complete($as($uploader), $uploadGuid) === $created && Queue::pushed(Noo\BunnyStream\Jobs\ImportVideo::class)->count() === $imports
+    && count($container->disk()->getFiles('films')) === 1, 'a retried completion returns the same asset');
+try { $uploads->complete($as($admin), $uploadGuid); throw new RuntimeException('Foreign completion accepted'); }
+catch (Symfony\Component\HttpKernel\Exception\HttpException $e) { check($e->getStatusCode() === 403, 'only the uploader can complete an upload'); }
 $importJob = Queue::pushed(Noo\BunnyStream\Jobs\ImportVideo::class)->last();
 $importJob->handle($uploadFake);
 check(Asset::find('videos::films/my-film.mp4') === null && Asset::find($placeholder->id())->get('bunny_stream')['placeholder'], 'the copy waits while Bunny has no source to serve');
@@ -614,10 +630,81 @@ $uploadFake->status = 4;
 Queue::pushed(SyncVideo::class)->last()->handle($uploadFake);
 check(Asset::find($uploaded->id())->get('bunny_stream')['state'] === 'ready', 'the uploaded asset becomes ready without a second upload');
 $uploadRequest($uploader, ['container' => 'videos', 'folder' => 'films', 'filename' => 'Gone.mp4']);
-$removed = Asset::find($uploads->complete($uploadGuid)['asset']);
+$removed = Asset::find($uploads->complete($as($uploader), $uploadGuid)['asset']);
 $removed->delete();
 Queue::pushed(Noo\BunnyStream\Jobs\ImportVideo::class)->last()->handle($uploadFake);
 check(! $container->disk()->exists('films/gone.mp4'), 'a deleted placeholder is not brought back');
+$complete = function ($filename) use ($uploadRequest, $uploader, $uploads, $as, $uploadGuid) {
+    $uploadRequest($uploader, ['container' => 'videos', 'folder' => 'films', 'filename' => $filename]);
+
+    return Asset::find($uploads->complete($as($uploader), $uploadGuid)['asset']);
+};
+$lastImport = fn () => Queue::pushed(Noo\BunnyStream\Jobs\ImportVideo::class)->last();
+// Names taken by files or by earlier uploads are never reused or overwritten.
+$container->disk()->put('films/clash.mp4', 'taken');
+$container->disk()->put('films/clash-1.mp4', 'keep');
+check($complete('Clash.mp4')->path() === 'films/clash-2.mp4' && $complete('Clash.mp4')->path() === 'films/clash-3.mp4'
+    && $container->disk()->get('films/clash-1.mp4') === 'keep', 'uploads with a taken name get the next free number');
+// A placeholder deleted while its source downloads is not brought back, and leaves no partial file.
+$doomed = $complete('Doomed.mp4');
+$uploadFake->onDownload = fn () => Asset::find($doomed->id())?->delete();
+$lastImport()->handle($uploadFake);
+$uploadFake->onDownload = null;
+check(! $container->disk()->exists('films/doomed.mp4') && ! collect($container->disk()->getFiles('.meta'))->contains(fn ($file) => str_ends_with($file, '.part')), 'a placeholder deleted during the download stays deleted');
+// A listing loaded before the import finished cannot put the placeholder back.
+$listedPlaceholder = $complete('Listed.mp4');
+$listed = $container->queryAssets()->where('path', 'films/listed.mp4')->get()->first();
+$listed->get('bunny_stream');
+$lastImport()->handle($uploadFake);
+$listed->height();
+check(empty(Asset::find($listedPlaceholder->id())->get('bunny_stream')['placeholder']), 'a stale listing does not undo a finished import');
+// An original Statamic can't show is not downloaded while Bunny is still encoding.
+$uploadFake->status = 3;
+$avi = $complete('Clip.avi');
+$downloads = $uploadFake->downloads;
+$lastImport()->handle($uploadFake);
+check($avi->path() === 'films/clip.mp4' && $uploadFake->downloads === $downloads && Asset::find($avi->id())->get('bunny_stream')['placeholder'], 'an unusable original is not downloaded before encoding ends');
+// When Bunny cannot encode a video, its original is kept so Retry can upload it again.
+$uploadFake->status = 5;
+$rejected = $complete('Rejected.mp4');
+$lastImport()->handle($uploadFake);
+$record = Asset::find($rejected->id())->get('bunny_stream');
+check($record['state'] === 'not_synced' && str_contains($record['error'], 'status 5') && empty($record['placeholder'])
+    && $container->disk()->size('films/rejected.mp4') > 0, 'a video Bunny cannot encode keeps its original for a retry');
+$uploadFake->status = 4;
+// Discarded uploads remove their empty Bunny video; finished ones cannot be cancelled.
+$uploadRequest($uploader, ['container' => 'videos', 'folder' => 'films', 'filename' => 'Discarded.mp4']);
+$uploads->cancel($as($uploader), $uploadFake, $uploadGuid);
+try { $uploads->complete($as($uploader), $uploadGuid); throw new RuntimeException('Cancelled upload completed'); }
+catch (Symfony\Component\HttpKernel\Exception\NotFoundHttpException $e) { check($uploadFake->deleted === [$uploadGuid], 'a cancelled upload deletes its Bunny video'); }
+$complete('Kept.mp4');
+try { $uploads->cancel($as($uploader), $uploadFake, $uploadGuid); throw new RuntimeException('Finished upload cancelled'); }
+catch (Symfony\Component\HttpKernel\Exception\HttpException $e) { check($e->getStatusCode() === 409 && count($uploadFake->deleted) === 1, 'a finished upload cannot be cancelled'); }
+// Empty videos of abandoned uploads are pruned; anything an asset refers to, recent, or with a file stays.
+$keptGeneration = Asset::find($rejected->id())->get('bunny_stream')['generation'];
+$pruneFake = new class($keptGeneration) extends BunnyClient {
+    public array $deleted = [];
+    public function __construct(private string $kept) {}
+    public function isConfigured(): bool { return true; }
+    public function videos(int $page = 1, int $perPage = 100, ?string $search = null): array {
+        $old = now()->subDays(3)->toIso8601String();
+        $items = $page > 1 ? [] : [
+            ['guid' => 'a1111111-1111-4111-8111-111111111111', 'title' => 'gone.mp4 [b1111111-1111-4111-8111-111111111111]', 'status' => 0, 'dateUploaded' => $old],
+            ['guid' => 'a2222222-2222-4222-8222-222222222222', 'title' => 'fresh.mp4 [b2222222-2222-4222-8222-222222222222]', 'status' => 0, 'dateUploaded' => now()->toIso8601String()],
+            ['guid' => 'a3333333-3333-4333-8333-333333333333', 'title' => 'full.mp4 [b3333333-3333-4333-8333-333333333333]', 'status' => 4, 'dateUploaded' => $old],
+            ['guid' => 'a4444444-4444-4444-8444-444444444444', 'title' => 'attach.mp4 ['.$this->kept.']', 'status' => 0, 'dateUploaded' => $old],
+            ['guid' => 'a5555555-5555-4555-8555-555555555555', 'title' => 'Hand-made title', 'status' => 0, 'dateUploaded' => $old],
+        ];
+        return ['totalItems' => 5, 'items' => $items];
+    }
+    public function delete(string $guid): void { $this->deleted[] = $guid; }
+};
+$app->instance(BunnyClient::class, $pruneFake);
+$kernel->registerCommand(new Noo\BunnyStream\Console\Commands\PruneUploadsCommand);
+$kernel->call('bunny-stream:prune-uploads', ['--dry-run' => true]);
+check($pruneFake->deleted === [], 'pruning has a dry run');
+$kernel->call('bunny-stream:prune-uploads');
+check($pruneFake->deleted === ['a1111111-1111-4111-8111-111111111111'], 'only old, empty, unowned upload videos are pruned');
 $action = new Noo\BunnyStream\Actions\UploadVideo;
 $app->instance(BunnyClient::class, new BunnyClient);
 check($action->visibleTo($container) && ! $action->visibleTo($uploaded) && $action->authorize($uploader, $container) && ! $action->authorize($viewer, $container), 'the upload action shows on enabled containers for users who may upload');

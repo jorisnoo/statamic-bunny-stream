@@ -173,6 +173,10 @@ class MigrateFieldsCommand extends Command
     private function content($item, array &$files): void
     {
         if ($item instanceof AssetContract) {
+            // Database-backed assets (the Eloquent driver's metaPath() is the media file) have no .meta file to rewrite.
+            if ($item->metaPath() === $item->path()) {
+                throw new \RuntimeException('Unsupported content store for '.get_class($item).'; migrate it through its repository first.');
+            }
             $file = ['disk' => $item->container()->diskHandle(), 'path' => $item->metaPath()];
             $meta = YAML::parse(Journal::contents($file));
             $meta['data'] = $item->data()->all();

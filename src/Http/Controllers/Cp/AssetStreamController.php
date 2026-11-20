@@ -69,7 +69,8 @@ class AssetStreamController extends CpController
         $refresh = $request->boolean('refresh') || in_array($request->input('action'), ['thumbnail', 'chapters'], true);
         $metadata = $guid && $refresh ? $bunny->video($guid) : ($data['metadata'] ?? []);
         if ($guid && $refresh && $request->isMethod('post')) {
-            $latest = Asset::find($asset->id());
+            // Bunny calls take a while; a worker may have written the record meanwhile.
+            $latest = Streams::fresh($asset->id());
             $current = $latest?->get('bunny_stream', []);
             if (($current['guid'] ?? null) === $guid) {
                 $latest->set('bunny_stream', array_merge($current, ['metadata' => $metadata]))->saveQuietly();
