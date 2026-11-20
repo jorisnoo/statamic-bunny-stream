@@ -20,7 +20,7 @@ class SyncVideo implements ShouldQueue
 
     public function middleware(): array
     {
-        return [(new WithoutOverlapping('bunny:'.$this->key))->releaseAfter(30)->expireAfter(3660)];
+        return [(new WithoutOverlapping('bunny:'.$this->key))->shared()->releaseAfter(30)->expireAfter(3660)];
     }
 
     public function backoff(): array { return [30, 120, 600, 1800]; }
@@ -49,11 +49,20 @@ class SyncVideo implements ShouldQueue
         if ($data['library_id'] !== (string) config('statamic.bunny-stream.library_id')) {
             throw new \RuntimeException('Bunny library changed; restore its configuration before retrying.');
         }
-        $guid = $data['pending_guid'] ?? null;
-        if ($data['state'] === 'remote_unready' && ! empty($data['guid'])) {
-            $guid = $data['guid'];
-            $data = array_merge($data, ['pending_guid' => $guid, 'state' => 'processing']);
+        // Upgrade older in-flight records before their state changes or metadata is refreshed.
+        if (! isset($data['guid_ready'])) {
+            $data['guid_ready'] = Streams::video($data) !== null;
             $asset->set('bunny_stream', $data)->saveQuietly();
+        }
+        $guid = $data['pending_guid'] ?? null;
+        // Existing uploads are only polled. Older jobs may already have recorded the
+        // same GUID as both current and pending, including after a Bunny encode failure.
+        $pollOnly = $data['state'] === 'remote_unready' || ($guid && $guid === ($data['guid'] ?? null));
+        if ($pollOnly) {
+            $guid ??= $data['guid'] ?? null;
+            if (! $guid) {
+                throw new \RuntimeException('No Bunny GUID is available to poll.');
+            }
         }
         if (! $guid) {
             // A lost create response is ambiguous. Never blindly create another remote video.
@@ -77,7 +86,7 @@ class SyncVideo implements ShouldQueue
             $data = array_merge($asset->get('bunny_stream'), ['pending_guid' => $guid, 'state' => 'uploading']);
             $asset->set('bunny_stream', $data)->saveQuietly();
         }
-        if (in_array($data['state'], ['uploading', 'failed', 'queued'], true)) {
+        if (! $pollOnly && in_array($data['state'], ['uploading', 'failed', 'queued'], true)) {
             $stream = $asset->stream();
             if (! is_resource($stream)) {
                 throw new \RuntimeException('Unable to open the asset source.');
@@ -92,8 +101,9 @@ class SyncVideo implements ShouldQueue
             Streams::delete($guid, $data['library_id']);
             return;
         }
-        $data = array_merge($asset->get('bunny_stream'), ['state' => 'processing']);
-        $asset->set('bunny_stream', $data)->saveQuietly();
+        if (! $pollOnly && $asset->get('bunny_stream')['state'] !== 'processing') {
+            $asset->set('bunny_stream', array_merge($asset->get('bunny_stream'), ['state' => 'processing']))->saveQuietly();
+        }
         $video = $bunny->video($guid);
         if (! $asset = $this->asset()) {
             Streams::delete($guid, $data['library_id']);
@@ -101,19 +111,28 @@ class SyncVideo implements ShouldQueue
         }
         $data = $asset->get('bunny_stream');
         $status = (int) ($video['status'] ?? -1);
+        $state = $pollOnly ? 'remote_unready' : 'processing';
         if (in_array($status, [5, 6], true)) {
-            $asset->set('bunny_stream', array_merge($data, ['state' => 'uploading', 'pending_metadata' => $video]))->saveQuietly();
-            throw new \RuntimeException('Bunny rejected or failed to encode the video (status '.$status.').');
+            $error = 'Bunny rejected or failed to encode the video (status '.$status.').';
+            // Native transfers can retry uploading the source; library and direct-upload
+            // polls must not upload anything unless an editor explicitly retries the transfer.
+            $asset->set('bunny_stream', array_merge($data, [
+                'state' => $pollOnly ? 'remote_unready' : 'uploading', 'pending_metadata' => $video, 'error' => $error,
+            ]))->saveQuietly();
+            throw new \RuntimeException($error);
         }
-        if (in_array($status, [4, 8], true)) {
+        if (Streams::playable($video)) {
             $old = $data['guid'] ?? null;
-            $data = array_merge($data, ['guid' => $guid, 'pending_guid' => null, 'state' => 'ready', 'metadata' => $video, 'pending_metadata' => null, 'error' => null]);
+            $data = array_merge($data, [
+                'guid' => $guid, 'guid_ready' => true, 'pending_guid' => null, 'state' => 'ready',
+                'metadata' => $video, 'pending_metadata' => null, 'error' => null,
+            ]);
             $asset->set('bunny_stream', $data)->saveQuietly();
             if ($old && $old !== $guid) {
                 Streams::delete($old, $data['library_id']);
             }
         } else {
-            $asset->set('bunny_stream', array_merge($data, ['state' => 'processing', 'pending_metadata' => $video, 'error' => null]))->saveQuietly();
+            $asset->set('bunny_stream', array_merge($data, ['state' => $state, 'pending_metadata' => $video, 'error' => null]))->saveQuietly();
             $this->release(60);
         }
     }

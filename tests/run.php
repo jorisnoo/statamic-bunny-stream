@@ -109,15 +109,35 @@ file_put_contents($file, 'after');
 Journal::apply('test-run', true);
 check(file_get_contents($file) === 'before', 'rollback restores exact bytes');
 
+$metadataPath = $container->disk()->path('.meta/journal-test.yaml');
+file_put_contents($metadataPath, 'asset metadata before');
+$openReader = fopen($metadataPath, 'rb');
+try {
+    Journal::write('asset-meta-run', ['files' => [Journal::change(['disk' => 'assets', 'path' => '.meta/journal-test.yaml'], 'asset metadata after')]]);
+    Journal::apply('asset-meta-run');
+    check(stream_get_contents($openReader) === 'asset metadata before' && file_get_contents($metadataPath) === 'asset metadata after', 'asset metadata journal atomically replaces content for concurrent readers');
+    Journal::apply('asset-meta-run', true);
+    check(file_get_contents($metadataPath) === 'asset metadata before', 'asset metadata journal rollback restores the original file');
+} finally {
+    fclose($openReader);
+}
+
 
 // Exercise the actual command, including imported fieldset prefixes and working copies.
-$fieldset = Statamic\Facades\Fieldset::make('shared')->setContents(['fields' => [['handle' => 'clip', 'field' => ['type' => 'bunny', 'display' => 'Clip']]]]);
+$fieldset = Statamic\Facades\Fieldset::make('shared')->setContents(['fields' => [
+    ['handle' => 'clip', 'field' => ['type' => 'bunny', 'display' => 'Clip']],
+    ['handle' => 'plain', 'field' => ['type' => 'text']],
+]]);
 $fieldset->save();
-$blueprint = Blueprint::make('article')->setNamespace('collections.articles')->setContents(['tabs' => ['main' => ['sections' => [['fields' => [['import' => 'shared', 'prefix' => 'hero_']]]]]]]);
+Statamic\Facades\Field::computedDefault('bunny-review-fixture', fn () => 'unrelated default');
+$blueprint = Blueprint::make('article')->setNamespace('collections.articles')->setContents(['tabs' => ['main' => ['sections' => [['fields' => [
+    ['import' => 'shared', 'prefix' => 'hero_'], ['handle' => 'direct_clip', 'field' => 'shared.clip'],
+    ['handle' => 'override_clip', 'field' => 'shared.plain', 'config' => ['type' => 'bunny']],
+]]]]]]);
 $blueprint->save();
 $collection = Statamic\Facades\Collection::make('articles')->title('Articles');
 $collection->save();
-$entry = Statamic\Facades\Entry::make()->collection('articles')->slug('example')->data(['hero_clip' => $guid]);
+$entry = Statamic\Facades\Entry::make()->collection('articles')->slug('example')->data(['hero_clip' => $guid, 'direct_clip' => $guid, 'override_clip' => $guid]);
 $entry->save();
 $revision = $entry->makeWorkingCopy();
 $revision->save();
@@ -171,16 +191,18 @@ $fieldsetBefore = file_get_contents($fieldset->path());
 $kernel = $app->make(Illuminate\Contracts\Console\Kernel::class);
 $kernel->registerCommand(new Noo\BunnyStream\Console\Commands\MigrateFieldsCommand);
 $kernel->registerCommand(new Noo\BunnyStream\Console\Commands\RollbackCommand);
-$result = $kernel->call('bunny-stream:migrate-fields', ['--dry-run' => true, '--field' => ['clip', 'bunny_video']]);
+$result = $kernel->call('bunny-stream:migrate-fields', ['--dry-run' => true, '--field' => ['clip', 'bunny_video', 'override_clip']]);
 check($result === 0, 'migration dry run succeeds: '.$kernel->output());
 check(file_get_contents($entryPath) === $entryBefore && file_get_contents($fieldset->path()) === $fieldsetBefore, 'dry run leaves content and definitions untouched');
 // Reboot blueprint/fieldset memory just as a separate artisan invocation would.
 Statamic\Facades\Fieldset::find('shared')->setContents(Statamic\Facades\YAML::parse($fieldsetBefore));
 $blueprint->setContents(Statamic\Facades\YAML::parse(file_get_contents($blueprint->path())));
 $app->maintenanceMode()->activate([]);
-$result = $kernel->call('bunny-stream:migrate-fields', ['--field' => ['clip', 'bunny_video']]);
+$result = $kernel->call('bunny-stream:migrate-fields', ['--field' => ['clip', 'bunny_video', 'override_clip']]);
 check($result === 0, 'migration applies complete shared field batch: '.$kernel->output());
 check(str_contains(file_get_contents($entryPath), 'hero_clip: renamed.mp4'), 'prefixed shared field value migrated');
+check(str_contains(file_get_contents($entryPath), 'direct_clip: renamed.mp4'), 'individual references migrate even when the field repository was already resolved');
+check(str_contains(file_get_contents($entryPath), 'override_clip: renamed.mp4'), 'a reference-level Bunny type override migrates with its value');
 check(str_contains(file_get_contents($revision->path()), 'hero_clip: renamed.mp4'), 'working copy migrated with its field definition');
 check(str_contains(file_get_contents($film->path()), 'bunny_video: renamed.mp4') && str_contains(file_get_contents($overridePath), 'bunny_stream_migrated'), 'entries using an overridden addon fieldset migrate');
 check(file_get_contents($addonFieldsets.'/bunny_video.yaml') === file_get_contents(__DIR__.'/../resources/fieldsets/bunny_video.yaml'), 'the addon fieldset itself is never rewritten');
@@ -211,6 +233,26 @@ $result = $kernel->call('bunny-stream:rollback', ['run' => $run]);
 check($result === 0 && file_get_contents($entryPath) === $entryBefore, 'command rollback restores entry');
 check(file_get_contents($fieldset->path()) === $fieldsetBefore, 'command rollback restores shared fieldset');
 check(file_get_contents($film->path()) === $filmBefore && file_get_contents($overridePath) === file_get_contents($addonFieldsets.'/bunny_video.yaml'), 'command rollback restores the fieldset override and its entries');
+
+Statamic\Facades\Collection::make('history')->save();
+$blueprintWithClip = fn ($handle, $field) => Blueprint::make($handle)->setNamespace('collections.history')->setContents(['tabs' => [
+    'main' => ['sections' => [['fields' => [['handle' => 'clip', 'field' => $field]]]]],
+]]);
+$blueprintWithClip('current', ['type' => 'text'])->save();
+$blueprintWithClip('archived', ['type' => 'assets', 'container' => 'videos', 'max_files' => 1, 'bunny_stream_migrated' => '123'])->save();
+$live = Statamic\Facades\Entry::make()->collection('history')->blueprint('current')->slug('record')->published(true)->data(['clip' => 'Editor text']);
+$live->save();
+$archive = $live->makeRevision()->action('revision')->attribute('blueprint', 'archived')->attribute('data', ['clip' => $guid]);
+$archive->save();
+$archivedBytes = file_get_contents($archive->path());
+$archivedCopy = $archive->toWorkingCopy();
+$archivedCopy->save();
+check($archivedCopy->attributes()['data']['clip'] === 'renamed.mp4', 'restoring a revision uses its own blueprint, not the live entry blueprint');
+$missingGuid = '99999999-1111-4111-8111-999999999999';
+$archivedCopy->attribute('data', ['clip' => $missingGuid])->save();
+check($archivedCopy->attributes()['data']['clip'] === $missingGuid && file_get_contents($archive->path()) === $archivedBytes, 'unresolved historical GUIDs survive restoration in an editable working copy');
+$archivedCopy->delete();
+
 // A dry run reports every unresolved reference at once.
 $broken = [];
 foreach (['aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'] as $missing) {
@@ -220,6 +262,39 @@ $result = $kernel->call('bunny-stream:migrate-fields', ['--dry-run' => true, '--
 $output = $kernel->output();
 check($result === 1 && str_contains($output, 'aaaaaaaa-') && str_contains($output, 'bbbbbbbb-') && str_contains($output, '2 item(s)'), 'dry run lists every unresolved reference: '.$output);
 foreach ($broken as $brokenEntry) { $brokenEntry->delete(); }
+$multiple = Statamic\Facades\Entry::make()->collection('articles')->slug('missing-several')->data([
+    'hero_clip' => 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'direct_clip' => 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+]);
+$multiple->saveQuietly();
+$result = $kernel->call('bunny-stream:migrate-fields', ['--dry-run' => true, '--field' => ['clip']]);
+$output = $kernel->output();
+check($result === 1 && str_contains($output, 'hero_clip: aaaaaaaa-') && str_contains($output, 'direct_clip: bbbbbbbb-'), 'dry-run reports both unresolved GUIDs in the same entry');
+$multiple->delete();
+$defaultBlueprint = $blueprintWithClip('legacy_default', ['type' => 'bunny', 'default' => $guid]);
+$defaultBlueprint->save();
+$result = $kernel->call('bunny-stream:migrate-fields', ['--dry-run' => true, '--field' => ['clip']]);
+$output = $kernel->output();
+check($result === 1 && str_contains($output, ':tabs.main.sections.0.fields.0.field.default') && str_contains($output, $defaultBlueprint->path()), 'migration refuses an active legacy default before applying definitions');
+$defaultBlueprint->delete();
+
+$articles = Statamic\Facades\Collection::findByHandle('articles');
+$articles->cascade(['hero_clip' => $guid])->save();
+$result = $kernel->call('bunny-stream:migrate-fields', ['--dry-run' => true, '--field' => ['clip']]);
+check($result === 1 && str_contains($kernel->output(), 'inject.hero_clip'), 'migration refuses inherited collection GUIDs before applying definitions');
+$articles->cascade([])->save();
+
+$defaultBlueprintPath = Blueprint::directory();
+$navigationBlueprints = $root.'/navigation-blueprints';
+mkdir($navigationBlueprints);
+file_put_contents($navigationBlueprints.'/main.yaml', "title: Navigation\nsections:\n  main:\n    fields:\n      - import: shared\n");
+$paths = ['default' => $defaultBlueprintPath, 'navigation' => $navigationBlueprints];
+Blueprint::setDirectories($paths);
+config(['statamic.system.blueprints_path' => $paths]);
+$result = $kernel->call('bunny-stream:migrate-fields', ['--dry-run' => true, '--field' => ['clip']]);
+$output = $kernel->output();
+check($result === 1 && str_contains($output, 'Unsupported content owner') && str_contains($output, $navigationBlueprints), 'migration detects unsupported consumers outside the default blueprint directory: '.$output);
+Blueprint::setDirectories($defaultBlueprintPath);
+config(['statamic.system.blueprints_path' => $defaultBlueprintPath]);
 
 
 // Import the original when present and a derivative when it is not.
@@ -227,9 +302,15 @@ $importGuid = '22222222-2222-4222-8222-222222222222';
 $originalGuid = '33333333-3333-4333-8333-333333333333';
 $fake = new class($importGuid, $originalGuid) extends BunnyClient {
     public int $downloads = 0;
+    public array $extra = [];
+    public int $polls = 0;
+    public int $uploads = 0;
     public function __construct(private $fallback, private $original) {}
     public function videos(int $page = 1, int $perPage = 100, ?string $search = null): array {
-        return ['totalItems' => 2, 'items' => array_map(fn ($guid) => ['guid' => $guid, 'title' => 'Imported', 'status' => 4], [$this->fallback, $this->original])];
+        return ['totalItems' => 2 + count($this->extra), 'items' => array_merge(
+            array_map(fn ($guid) => ['guid' => $guid, 'title' => 'Imported', 'status' => 4], [$this->fallback, $this->original]),
+            $this->extra,
+        )];
     }
     public function downloadOriginal(string $guid, string $sinkPath): void {
         if ($guid === $this->fallback) {
@@ -239,6 +320,8 @@ $fake = new class($importGuid, $originalGuid) extends BunnyClient {
         copy(__DIR__.'/fixtures/video.mp4', $sinkPath);
     }
     public function download(string $guid, string $sinkPath, ?array $video = null): void { $this->downloads++; copy(__DIR__.'/fixtures/video.mp4', $sinkPath); }
+    public function video(string $guid): array { $this->polls++; return ['guid' => $guid, 'status' => 5]; }
+    public function upload(string $guid, $stream): void { $this->uploads++; }
     public function create(string $title, int $thumbnailTime = 0): array { throw new Exception('Import must not create a remote video'); }
 };
 $app->instance(BunnyClient::class, $fake);
@@ -251,12 +334,38 @@ $imported = Asset::find('videos::bunny-stream/123/'.$importGuid.'.mp4');
 check($imported->get('bunny_stream')['guid'] === $importGuid && $imported->get('bunny_stream')['source'] === 'derivative', 'import preserves GUID and records derivative provenance');
 $result = $kernel->call('bunny-stream:import-assets', ['container' => 'videos']);
 check($result === 0 && $fake->downloads === 2, 'rerunning import does not download or duplicate assets');
+$pendingImportGuid = '55555555-1111-4111-8111-555555555555';
+$encodingImportGuid = '66666666-1111-4111-8111-666666666666';
+$container->disk()->put('native-pending.mp4', file_get_contents(__DIR__.'/fixtures/video.mp4'));
+Asset::make()->container($container)->path('native-pending.mp4')->set('bunny_stream', [
+    'key' => 'native-pending', 'library_id' => '123', 'generation' => 'native-pending', 'state' => 'processing', 'pending_guid' => $pendingImportGuid,
+])->saveQuietly();
+$fake->extra = [['guid' => $pendingImportGuid, 'status' => 3], ['guid' => $encodingImportGuid, 'status' => 3]];
+$beforePolls = Queue::pushed(SyncVideo::class)->count();
+$result = $kernel->call('bunny-stream:import-assets', ['container' => 'videos']);
+$pollJob = Queue::pushed(SyncVideo::class)->last();
+check($result === 0 && $fake->downloads === 3 && ! Asset::find('videos::bunny-stream/123/'.$pendingImportGuid.'.mp4')
+    && $pollJob->assetId === 'videos::bunny-stream/123/'.$encodingImportGuid.'.mp4'
+    && Queue::pushed(SyncVideo::class)->count() === $beforePolls + 1, 'live import reserves pending GUIDs and schedules polling on its first apply');
+$result = $kernel->call('bunny-stream:import-assets', ['container' => 'videos', '--dry-run' => true]);
+check($result === 0 && Queue::pushed(SyncVideo::class)->count() === $beforePolls + 1, 'dry-run does not dispatch encoding jobs for existing imports');
+for ($attempt = 0; $attempt < 2; $attempt++) {
+    try { $pollJob->handle($fake); }
+    catch (RuntimeException $e) { if (! str_contains($e->getMessage(), 'status 5')) { throw $e; } }
+}
+check($fake->polls === 2 && $fake->uploads === 0 && Asset::find($pollJob->assetId)->get('bunny_stream')['state'] !== 'ready', 'failed encoding polls never re-upload an existing Bunny video');
 
 // Signed augmentation remains available through the native Assets field.
 config(['statamic.bunny-stream.token_key' => 'signing-key']);
 $stream = $imported->augmentedValue('bunny_stream')->value();
 check(str_contains($stream->embedUrl(), 'token=') && str_contains($stream->embed(), $importGuid), 'asset augmentation uses signed BunnyVideo playback');
 $antlers = (string) Statamic\Facades\Antlers::parse('{{ video:bunny_stream:embed }}', ['video' => $imported]);
+require __DIR__.'/../routes/web.php';
+app('router')->getRoutes()->refreshNameLookups();
+check($imported->augmentedValue('bunny_stream')->value()->url() === route('bunny.playlist', $importGuid), 'native assets retain the Safari playlist route from main');
+config(['statamic.bunny-stream.playlist_start_resolution' => null]);
+check(Noo\BunnyStream\Data\BunnyVideo::make($importGuid)->url() === 'https://example.test/'.$importGuid.'/playlist.m3u8', 'disabled playlist reordering links straight to Bunny');
+config(['statamic.bunny-stream.playlist_start_resolution' => 720]);
 check(str_contains($antlers, '<iframe') && str_contains($antlers, $importGuid), 'Antlers streams through a native asset');
 // One template works before and after migration.
 Noo\BunnyStream\Modifiers\BunnyStream::register();
@@ -338,7 +447,7 @@ $replacedAsset = Asset::find($imported->id());
 $replacedAsset->delete();
 $aliasItem->data(['video' => $importGuid]);
 try { Noo\BunnyStream\Migration\References::item($aliasItem)->convert(); throw new Exception('Deleted mapping accepted'); }
-catch (RuntimeException $e) { check(str_contains($e->getMessage(), 'Unresolved'), 'deleted asset blocks historical restore'); }
+catch (RuntimeException $e) { check(str_contains($e->getMessage(), 'Unresolved'), 'deleted asset is unresolved in strict migration'); }
 // Creation failures cannot produce duplicates when the response is uncertain.
 $container->disk()->put('uncertain.mp4', file_get_contents(__DIR__.'/fixtures/video.mp4'));
 $uncertain = Asset::make()->container($container)->path('uncertain.mp4');
@@ -455,10 +564,20 @@ $container->disk()->put('chaptered.mp4', file_get_contents(__DIR__.'/fixtures/vi
 $chaptered->set('bunny_stream', ['key' => 'k', 'generation' => 'g', 'library_id' => '123', 'guid' => '88888888-8888-4888-8888-888888888888', 'state' => 'ready'])->saveQuietly();
 $sent = [];
 fakeHttp(function ($request) use (&$sent) { $sent[] = [$request->method(), $request->data()]; return Http::response(['chapters' => []]); });
-$clear = Illuminate\Http\Request::create('/bunny/asset-stream', 'POST', [], [], [], ['CONTENT_TYPE' => 'application/json'], json_encode(['asset' => $chaptered->id(), 'action' => 'chapters', 'chapters' => []]));
+$clear = Illuminate\Http\Request::create('/bunny/asset-stream', 'POST', [], [], [], ['CONTENT_TYPE' => 'application/json'], json_encode([
+    'asset' => $chaptered->id(), 'action' => 'chapters', 'guid' => '88888888-8888-4888-8888-888888888888', 'chapters' => [],
+]));
 $clear->setUserResolver(fn () => $admin);
 $controller($clear, new BunnyClient);
 check($sent[0] === ['POST', ['chapters' => []]], 'saving an empty chapter list clears chapters');
+$refresh = Illuminate\Http\Request::create('/bunny/asset-stream', 'GET', ['asset' => $chaptered->id(), 'refresh' => 1]);
+$refresh->setUserResolver(fn () => $viewer);
+$generated = [['title' => 'Generated', 'start' => 0, 'end' => 5]];
+fakeHttp(fn () => Http::response(['chapters' => $generated]));
+$controller($refresh, new BunnyClient);
+$reopen = Illuminate\Http\Request::create('/bunny/asset-stream', 'GET', ['asset' => $chaptered->id()]);
+$reopen->setUserResolver(fn () => $viewer);
+check($controller($reopen, new BunnyClient)['chapters'] === $generated, 'chapters found on refresh survive reopening the editor');
 // The legacy picker sees every page of the library and never caches a failed listing.
 $pages = new class extends BunnyClient {
     public int $calls = 0;
@@ -481,6 +600,11 @@ Statamic\Facades\Role::make('writer')->title('Writer')->permissions(['access cp'
 $writer = Statamic\Facades\User::make()->email('writer@example.test')->assignRole('writer');
 $writer->save();
 check(Illuminate\Support\Facades\Gate::forUser($writer)->allows('use bunny fieldtype') && Illuminate\Support\Facades\Gate::forUser($viewer)->denies('use bunny fieldtype'), 'legacy picker requires an editing permission');
+Statamic\Facades\Role::make('creator')->title('Creator')->permissions(['access cp', 'create articles entries'])->save();
+$creator = Statamic\Facades\User::make()->email('creator@example.test')->assignRole('creator');
+$creator->save();
+$creatorGate = Illuminate\Support\Facades\Gate::forUser($creator);
+check($creatorGate->allows('use bunny fieldtype') && $creatorGate->denies('manage bunny videos'), 'create-only editors can use the picker but not manage videos');
 // Streamed videos show Bunny's thumbnail wherever the CP lists assets.
 Noo\BunnyStream\ServiceProvider::registerAssetHooks();
 $chaptered = Asset::find($chaptered->id());
@@ -523,22 +647,38 @@ $listed = $container->queryAssets()->where('path', 'clip.webm')->first();
 $listed->duration();
 $clipMeta = Statamic\Facades\YAML::parse($container->disk()->get($clip->metaPath()));
 check(($clipMeta['data']['alt'] ?? null) === 'Keep me' && ($clipMeta['data']['bunny_stream']['guid'] ?? null) === 'keep-guid', 'metadata regeneration keeps asset data');
+config(['statamic.assets.cache_meta' => false]);
+$uncached = Asset::find($clip->id());
+check($uncached->get('alt') === 'Keep me' && $uncached->get('bunny_stream')['guid'] === 'keep-guid', 'managed asset data survives uncached metadata generation');
+$uncached->set('alt', 'Edited without caching')->save();
+check(Asset::find($clip->id())->get('alt') === 'Edited without caching', 'managed asset edits persist without metadata caching');
+config(['statamic.assets.cache_meta' => true, 'statamic.bunny-stream.asset_containers' => []]);
+$custom = Asset::find($plain->id());
+$custom->set('bunny_stream', 'Site-defined value')->save();
+check(Asset::find($plain->id())->get('bunny_stream') === 'Site-defined value', 'unmanaged assets can save an unrelated field named bunny_stream');
+config(['statamic.bunny-stream.asset_containers' => ['videos']]);
 // Lost stream records are recovered from the Bunny library, never guessed.
 $repairGuid = 'aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa';
 $titledGuid = 'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb';
-foreach (['bunny-stream/123/'.$repairGuid.'.mp4', 'film-lost.mp4', 'twice.mp4'] as $path) {
-    $container->disk()->put($path, file_get_contents(__DIR__.'/fixtures/video.mp4'));
+$staleRepairGuid = 'cccccccc-1111-4111-8111-cccccccccccc';
+$duplicateRepairGuid = 'dddddddd-1111-4111-8111-dddddddddddd';
+$staleRepairPath = 'bunny-stream/123/'.$staleRepairGuid.'.mp4';
+foreach (['bunny-stream/123/'.$repairGuid.'.mp4', 'film-lost.mp4', 'twice.mp4', $staleRepairPath, 'a/shared.mp4', 'b/shared.mp4'] as $path) {
+    $container->disk()->put($path, file_get_contents(__DIR__.'/fixtures/video.mp4').($path === $staleRepairPath ? 'changed local bytes' : ''));
     Asset::make()->container($container)->path($path)->saveQuietly();
 }
-$repairFake = new class($repairGuid, $titledGuid) extends BunnyClient {
-    public function __construct(private $imported, private $titled) {}
+$repairFake = new class($repairGuid, $titledGuid, $staleRepairGuid, $duplicateRepairGuid) extends BunnyClient {
+    public function __construct(private $imported, private $titled, private $stale, private $duplicate) {}
+    public function downloadOriginal(string $guid, string $sinkPath): void { copy(__DIR__.'/fixtures/video.mp4', $sinkPath); }
     public function isConfigured(): bool { return true; }
     public function videos(int $page = 1, int $perPage = 100, ?string $search = null): array {
-        return ['totalItems' => 4, 'items' => [
+        return ['totalItems' => 6, 'items' => [
             ['guid' => $this->imported, 'title' => 'Anything', 'status' => 4],
             ['guid' => $this->titled, 'title' => 'film-lost.mp4 [cccccccc-3333-4333-8333-cccccccccccc]', 'status' => 4],
             ['guid' => 'dddddddd-4444-4444-8444-dddddddddddd', 'title' => 'twice.mp4 [eeeeeeee-5555-4555-8555-eeeeeeeeeeee]', 'status' => 4],
             ['guid' => 'ffffffff-6666-4666-8666-ffffffffffff', 'title' => 'twice.mp4 [99999999-7777-4777-8777-999999999999]', 'status' => 4],
+            ['guid' => $this->stale, 'title' => 'Stale', 'status' => 4],
+            ['guid' => $this->duplicate, 'title' => 'shared.mp4 [22222222-1111-4111-8111-222222222222]', 'status' => 4],
         ]];
     }
 };
@@ -552,6 +692,8 @@ check(Asset::find('videos::bunny-stream/123/'.$repairGuid.'.mp4')->get('bunny_st
 $recovered = Asset::find('videos::film-lost.mp4')->get('bunny_stream');
 check($recovered['guid'] === $titledGuid && $recovered['generation'] === 'cccccccc-3333-4333-8333-cccccccccccc', 'repair restores synced videos by title and generation');
 check(Asset::find('videos::twice.mp4')->get('bunny_stream') === null && str_contains($output, 'twice.mp4: 2 possible'), 'repair leaves ambiguous matches alone: '.$output);
+check(Asset::find('videos::'.$staleRepairPath)->get('bunny_stream') === null, 'repair does not link a replaced source to the old import-path GUID');
+check(Asset::find('videos::a/shared.mp4')->get('bunny_stream') === null && Asset::find('videos::b/shared.mp4')->get('bunny_stream') === null, 'repair does not resolve reverse collisions by iteration order');
 // Large uploads go from the browser to Bunny; a queued job then copies the video into the container.
 Statamic\Facades\Role::make('uploader')->title('Uploader')->permissions(['access cp', 'view videos assets', 'upload videos assets'])->save();
 $uploader = Statamic\Facades\User::make()->email('uploader@example.test')->assignRole('uploader');
@@ -601,6 +743,9 @@ check($created['asset'] === 'videos::films/my-film.mov' && $placeholder->get('bu
     && $placeholder->disk()->exists($placeholder->path()) && $placeholder->disk()->size($placeholder->path()) === 0, 'a finished upload creates its asset at once, with an empty placeholder file');
 check(Queue::pushed(Noo\BunnyStream\Jobs\ImportVideo::class)->count() === $pushed + 1 && Queue::pushed(SyncVideo::class)->filter(fn ($job) => $job->assetId === $placeholder->id())->isEmpty(), 'the placeholder queues its copy from Bunny, not an upload');
 check(($thumbnails($placeholder, Statamic\Http\Resources\CP\Assets\FolderAsset::class)['thumbnail'] ?? null) === Noo\BunnyStream\ServiceProvider::processingThumbnail(), 'the placeholder shows a processing thumbnail until Bunny has one');
+$placeholderStatus = Illuminate\Http\Request::create('/bunny/asset-stream', 'GET', ['asset' => $placeholder->id()]);
+$placeholderStatus->setUserResolver(fn () => $viewer);
+check(Noo\BunnyStream\Data\BunnyVideo::from($placeholder) === null && $controller($placeholderStatus, $uploadFake)['embed_url'] === null, 'an unencoded upload is not playable in templates or the CP');
 $imports = Queue::pushed(Noo\BunnyStream\Jobs\ImportVideo::class)->count();
 check($uploads->complete($as($uploader), $uploadGuid) === $created && Queue::pushed(Noo\BunnyStream\Jobs\ImportVideo::class)->count() === $imports
     && count($container->disk()->getFiles('films')) === 1, 'a retried completion returns the same asset');
@@ -664,6 +809,18 @@ $avi = $complete('Clip.avi');
 $downloads = $uploadFake->downloads;
 $lastImport()->handle($uploadFake);
 check($avi->path() === 'films/clip.mp4' && $uploadFake->downloads === $downloads && Asset::find($avi->id())->get('bunny_stream')['placeholder'], 'an unusable original is not downloaded before encoding ends');
+$lateFailure = $complete('Late encoding failure.mp4');
+$lastImport()->handle($uploadFake);
+$latePoll = Queue::pushed(SyncVideo::class)->last();
+$uploadFake->status = 5;
+try { $latePoll->handle($uploadFake); }
+catch (RuntimeException $e) { if (! str_contains($e->getMessage(), 'status 5')) { throw $e; } }
+$lateRetry = Illuminate\Http\Request::create('/bunny/asset-stream', 'POST', ['asset' => $lateFailure->id(), 'action' => 'retry']);
+$lateRetry->setUserResolver(fn () => $admin);
+$app['auth']->setUser($admin);
+$controller($lateRetry, $uploadFake);
+$newGeneration = Asset::find($lateFailure->id())->get('bunny_stream');
+check($newGeneration['state'] === 'queued' && $newGeneration['generation'] !== $latePoll->generation, 'an editor can explicitly retry a direct upload whose encoding failed after copying the source');
 // When Bunny cannot encode a video, its original is kept so Retry can upload it again.
 $uploadFake->status = 5;
 $rejected = $complete('Rejected.mp4');
@@ -680,6 +837,36 @@ catch (Symfony\Component\HttpKernel\Exception\NotFoundHttpException $e) { check(
 $complete('Kept.mp4');
 try { $uploads->cancel($as($uploader), $uploadFake, $uploadGuid); throw new RuntimeException('Finished upload cancelled'); }
 catch (Symfony\Component\HttpKernel\Exception\HttpException $e) { check($e->getStatusCode() === 409 && count($uploadFake->deleted) === 1, 'a finished upload cannot be cancelled'); }
+$container->validationRules(['max:1'])->save();
+$tooBig = $complete('Over limit.mp4');
+$validationFailure = null;
+try { $lastImport()->handle($uploadFake); }
+catch (Illuminate\Validation\ValidationException $e) { $validationFailure = $e; }
+check(isset($validationFailure?->errors()['file']) && $tooBig->disk()->size($tooBig->path()) === 0
+    && Asset::find($tooBig->id())->get('bunny_stream')['placeholder'], 'container file limits apply before direct import replaces the placeholder');
+$container->validationRules([])->save();
+
+$storage = Illuminate\Support\Facades\Storage::getFacadeRoot();
+$normalDisk = $storage->disk('assets');
+$failingAdapter = new class($root.'/public/assets') extends League\Flysystem\Local\LocalFilesystemAdapter {
+    public function move(string $source, string $destination, League\Flysystem\Config $config): void {
+        throw League\Flysystem\UnableToMoveFile::fromLocationTo($source, $destination);
+    }
+};
+$storage->set('assets', new Illuminate\Filesystem\FilesystemAdapter(new League\Flysystem\Filesystem($failingAdapter), $failingAdapter, ['throw' => false]));
+try {
+    foreach (['Same extension.mp4' => 'films/same-extension.mp4', 'Different extension.mov' => 'films/different-extension.mp4'] as $filename => $destination) {
+        $unfinished = $complete($filename);
+        $failedMove = null;
+        try { $lastImport()->handle($uploadFake); }
+        catch (RuntimeException $e) { $failedMove = $e; }
+        check($failedMove !== null && Asset::find($unfinished->id())->get('bunny_stream')['placeholder']
+            && $unfinished->disk()->size($unfinished->path()) === 0
+            && ($destination === $unfinished->path() || ! $unfinished->disk()->exists($destination)), 'failed disk move keeps the selectable placeholder: '.$filename);
+    }
+} finally {
+    $storage->set('assets', $normalDisk);
+}
 // Empty videos of abandoned uploads are pruned; anything an asset refers to, recent, or with a file stays.
 $keptGeneration = Asset::find($rejected->id())->get('bunny_stream')['generation'];
 $pruneFake = new class($keptGeneration) extends BunnyClient {

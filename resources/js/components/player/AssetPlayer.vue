@@ -2,14 +2,16 @@
     <PlayerStack
         v-model:open="open"
         :src="stream?.embed_url"
+        :item-id="current.id"
         :title="stream?.title || current.title"
         :duration="stream?.duration"
         :width="stream?.width"
         :height="stream?.height"
         :chapters="stream?.chapters || []"
     >
-        <template v-if="error" #aside>
-            <Alert variant="error" :text="error" />
+        <template v-if="error || (stream && !stream.embed_url)" #aside>
+            <Alert v-if="error" variant="error" :text="error" />
+            <Alert v-else variant="warning" :text="__('This video is not ready to play.')" />
         </template>
         <template v-if="items.length > 1" #playlist>
             <ol class="tw:flex tw:gap-3 tw:overflow-x-auto tw:p-1" :aria-label="__('Videos')">
@@ -48,18 +50,18 @@ const stream = ref(null);
 const error = ref('');
 const current = computed(() => props.items[position.value]);
 
-async function load() {
+watch(position, async (_index, _previous, onCleanup) => {
+    let stale = false;
+    onCleanup(() => { stale = true; });
     const item = current.value;
     stream.value = null;
     error.value = '';
     try {
-        const { data } = await http.get(item.endpoint, { params: { asset: item.id } });
-        if (item === current.value) stream.value = data;
+        const { data } = await http.get(item.endpoint, { params: { asset: item.id, refresh_chapters: 1 } });
+        if (!stale) stream.value = data;
     } catch (e) {
-        if (item === current.value) error.value = e.response?.data?.message || __('Could not load the video.');
+        if (!stale) error.value = e.response?.data?.message || __('Could not load the video.');
     }
-}
-
-watch(position, load, { immediate: true });
+}, { immediate: true });
 watch(open, (value) => { if (!value) emit('closed'); });
 </script>

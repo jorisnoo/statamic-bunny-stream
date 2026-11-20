@@ -5,9 +5,9 @@
         <Teleport :to="previewArea" :disabled="!previewArea">
             <div
                 v-if="meta.endpoint"
-                :class="previewArea && ['bunny-asset-preview dark tw:flex tw:min-h-0 tw:text-gray-200 tw:flex-col tw:items-center tw:overflow-y-auto tw:p-8', { 'bunny-asset-preview--replaces tw:flex-1 tw:justify-center': replacesPreview }]"
+                :class="previewArea && ['bunny-asset-preview dark tw:flex tw:min-h-0 tw:text-gray-200 tw:flex-col tw:items-center tw:overflow-y-auto tw:p-4 tw:sm:p-8', { 'bunny-asset-preview--replaces tw:flex-1 tw:justify-center-safe': replacesPreview }]"
             >
-                <div class="tw:w-full tw:space-y-4" :style="previewArea && { maxWidth: 'calc((100svh - 21rem) * 16 / 9)' }">
+                <div class="tw:w-full tw:shrink-0 tw:space-y-4" :style="previewArea && { maxWidth: 'max(24rem, calc((100svh - 21rem) * 16 / 9))' }">
                     <BunnyPlayer v-if="playerSrc" :src="playerSrc" :title="stream.title" />
 
                     <!-- No stream yet: show where the upload is instead of an empty player. -->
@@ -40,7 +40,7 @@
                                     @click="thumbnailInput.click()"
                                 />
                             </template>
-                            <Button size="sm" icon="sync" :text="__('Refresh')" :loading="busy === 'refresh'" :disabled="!!busy" @click="load(true)" />
+                            <Button size="sm" icon="sync" :text="__('Refresh')" :loading="busy === 'refresh'" :disabled="!!busy" @click="load({ refresh: true })" />
                         </div>
                     </div>
 
@@ -65,20 +65,23 @@
                             </div>
                         </Field>
 
-                        <section v-if="stream.embed_url && meta.chapters" class="tw:space-y-2" :aria-label="__('Chapters')">
+                        <section v-if="meta.chapters && (stream.embed_url || chaptersDirty)" class="tw:@container tw:space-y-2" :aria-label="__('Chapters')">
                             <Description :text="__('Chapters are saved to Bunny directly, not with the asset.')" />
-                            <div v-for="(chapter, index) in chapters" :key="index" class="tw:grid tw:grid-cols-[minmax(0,1fr)_6.5rem_6.5rem_auto] tw:items-end tw:gap-2">
-                                <Field :label="__('Title')"><Input v-model="chapter.title" /></Field>
+                            <Alert v-if="staleDraft" variant="warning" :text="__('The current video changed. Discard this draft to edit the new video.')" />
+                            <div v-for="(chapter, index) in chapters" :key="index" class="tw:grid tw:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] tw:@lg:grid-cols-[minmax(0,1fr)_6.5rem_6.5rem_auto] tw:items-end tw:gap-2">
+                                <Field class="tw:col-span-full tw:@lg:col-span-1" :label="__('Title')"><Input v-model="chapter.title" /></Field>
                                 <Field :label="__('Start (seconds)')"><Input v-model="chapter.start" type="number" min="0" /></Field>
                                 <Field :label="__('End (seconds)')"><Input v-model="chapter.end" type="number" :min="chapter.start" /></Field>
                                 <Button icon="trash" icon-only variant="ghost" :aria-label="__('Remove chapter :title', { title: chapter.title || index + 1 })" @click="chapters.splice(index, 1)" />
                             </div>
                             <div class="tw:flex tw:flex-wrap tw:gap-2">
                                 <Button icon="plus" :text="__('Add chapter')" @click="chapters.push({ title: '', start: 0, end: 0 })" />
-                                <Button variant="primary" :text="__('Save chapters')" :loading="busy === 'chapters'" :disabled="!!busy" @click="saveChapters" />
-                                <Button :text="__('Generate chapters')" :loading="busy === 'transcribe'" :disabled="!!busy" @click="transcribe" />
+                                <Button v-if="staleDraft" :text="__('Discard chapter draft')" @click="loadChapters(stream)" />
+                                <Button v-else variant="primary" :text="__('Save chapters')" :loading="busy === 'chapters'" :disabled="!!busy || !chaptersDirty" @click="saveChapters" />
+                                <Button :text="__('Generate chapters')" :loading="busy === 'transcribe'" :disabled="!!busy || staleDraft || (generating && !stopped)" @click="action('transcribe', { guid: stream.guid })" />
                             </div>
-                            <Description v-if="generating" :text="__('Bunny is generating chapters. Refresh in a few minutes to load them.')" />
+                            <Description v-if="generating" :text="__('Bunny is generating chapters. They will appear here when available.')" />
+                            <Alert v-else-if="stream.chapter_generation_failed" variant="error" :text="__('Bunny could not generate chapters for this video.')" />
                         </section>
                     </template>
                 </div>
@@ -94,15 +97,17 @@ import { Fieldtype } from '@statamic/cms';
 import { Alert, Badge, Button, Description, Field, Input } from '@statamic/cms/ui';
 import BunnyPlayer from '../components/player/BunnyPlayer.vue';
 import { formatTime } from '@/utils/time.js';
+import { guardAssetEditor } from '../utils/nativeAssets.js';
 
 const emit = defineEmits(Fieldtype.emits);
 const props = defineProps(Fieldtype.props);
 const { expose, isReadOnly } = Fieldtype.use(emit, props);
 defineExpose(expose);
 // Statamic 6 exposes its configured axios (CSRF, session handling) only to components.
-const http = getCurrentInstance().appContext.config.globalProperties.$axios;
+const instance = getCurrentInstance();
+const http = instance.appContext.config.globalProperties.$axios;
 
-const ACTIVE = ['queued', 'creating', 'uploading', 'processing'];
+const ACTIVE = ['queued', 'creating', 'uploading', 'processing', 'remote_unready'];
 const POLL_MS = 5000;
 const MAX_POLLS = 120;
 
@@ -110,6 +115,7 @@ const stream = ref({});
 const chapters = ref([]);
 // The chapters as Bunny has them; edits that differ are kept until saved.
 const savedChapters = ref('[]');
+const chapterGuid = ref(null);
 const error = ref('');
 const busy = ref('');
 const recoveryGuid = ref('');
@@ -118,12 +124,13 @@ const stopped = ref(false);
 const root = ref(null);
 const previewArea = ref(null);
 const playerSrc = ref(null);
-const generating = ref(false);
+const chapterDirtyKey = Symbol('bunny-chapters');
 let timer = null;
 let polls = 0;
 let failures = 0;
 let sequence = 0;
 let disposed = false;
+let releaseEditorGuard;
 
 const labels = {
     not_synced: __('Not synced'),
@@ -141,12 +148,15 @@ const stateColor = computed(() => {
     if (ACTIVE.includes(stream.value.state)) return 'blue';
     return stream.value.state ? 'amber' : 'default';
 });
-const active = computed(() => !stream.value.error && ACTIVE.includes(stream.value.state) && !stopped.value);
+const syncing = computed(() => !stream.value.error && ACTIVE.includes(stream.value.state));
+const active = computed(() => syncing.value && !stopped.value);
+const generating = computed(() => stream.value.generating_chapters);
+const watching = computed(() => syncing.value || generating.value);
 const editable = computed(() => stream.value.can_edit && !isReadOnly.value);
 // A lost create response needs Attach and retry; a plain retry would fail the same way.
-const canRetry = computed(() => stream.value.state !== 'creating' && (stream.value.error || ['not_synced', 'remote_unready'].includes(stream.value.state)));
+const canRetry = computed(() => stream.value.state !== 'creating' && (stream.value.error || stream.value.state === 'not_synced'));
 // Before the first status arrives, or while Bunny has no stream yet, hold the player's place.
-const placeholder = computed(() => active.value || (!stream.value.state && !error.value));
+const placeholder = computed(() => syncing.value || (!stream.value.state && !error.value));
 // Statamic's own <video> preview gives way to the player, or to the placeholder that precedes it.
 const replacesPreview = computed(() => !!playerSrc.value || placeholder.value);
 const details = computed(() => [
@@ -156,54 +166,78 @@ const details = computed(() => [
     stream.value.width && stream.value.height ? `${stream.value.width} × ${stream.value.height}` : null,
 ].filter(Boolean).join(' · '));
 const chaptersDirty = computed(() => JSON.stringify(chapters.value) !== savedChapters.value);
+const staleDraft = computed(() => chaptersDirty.value && chapterGuid.value !== stream.value.guid);
 const guidValid = computed(() => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(recoveryGuid.value.trim()));
 
-function apply(data, { syncChapters = false } = {}) {
-    const becameReady = data.state === 'ready' && stream.value.state !== 'ready';
-    stream.value = data;
-    // Never overwrite chapter edits that haven't been saved.
-    if ((syncChapters || becameReady) && !chaptersDirty.value) {
-        chapters.value = structuredClone(data.chapters ?? []);
-        savedChapters.value = JSON.stringify(chapters.value);
-    }
-    clearTimeout(timer);
-    if (disposed || data.error || !ACTIVE.includes(data.state)) return;
-    if (++polls >= MAX_POLLS) {
-        stopped.value = true;
-        return;
-    }
-    timer = setTimeout(() => load(), POLL_MS);
+function loadChapters(data) {
+    chapters.value = (data.chapters ?? []).map(({ title, start, end }) => ({ title: title ?? '', start, end }));
+    savedChapters.value = JSON.stringify(chapters.value);
+    chapterGuid.value = data.guid;
 }
 
-async function load(refresh = false) {
+function expiresAt(url) {
+    return url ? Number(new URL(url).searchParams.get('expires')) * 1000 : 0;
+}
+
+function apply(data) {
+    // Keep a playing iframe through status polls; only replace it when the video or its expired signature changes.
+    const expiry = expiresAt(playerSrc.value);
+    if (!data.embed_url || !playerSrc.value || data.guid !== stream.value.guid || (expiry && expiry <= Date.now())) {
+        playerSrc.value = data.embed_url;
+    }
+    stream.value = data;
+    if (!chaptersDirty.value) loadChapters(data);
+}
+
+function schedule() {
+    clearTimeout(timer);
+    if (disposed || failures > 5) return;
+    const poll = watching.value && !stopped.value;
+    const expiry = expiresAt(playerSrc.value);
+    if (!poll && !expiry) return;
+    const delay = POLL_MS * 2 ** failures;
+    // Renew an expired token even with no active poll. Timers longer than 2^31-1 ms wrap.
+    const wait = poll ? delay : Math.min(Math.max(delay, expiry - Date.now()), 2147483647);
+    timer = setTimeout(() => load({ poll }), wait);
+}
+
+async function load({ refresh = false, poll = false } = {}) {
     if (!props.meta.endpoint) return;
     const id = ++sequence;
     clearTimeout(timer);
     if (refresh) {
         busy.value = 'refresh';
         polls = 0;
+        failures = 0;
         stopped.value = false;
     }
     try {
-        const { data } = await http.get(props.meta.endpoint, { params: { asset: props.meta.asset, refresh: refresh ? 1 : 0 } });
+        const { data } = await http.get(props.meta.endpoint, { params: { asset: props.meta.asset, refresh: refresh ? 1 : 0, refresh_chapters: 1 } });
         if (id !== sequence || disposed) return;
         failures = 0;
         error.value = '';
-        apply(data, { syncChapters: refresh || !stream.value.state });
+        apply(data);
+        if (poll && ++polls >= MAX_POLLS && watching.value) stopped.value = true;
+        if (!watching.value) {
+            polls = 0;
+            stopped.value = false;
+        }
     } catch (e) {
         if (id !== sequence || disposed) return;
         error.value = e.response?.data?.message || __('Could not load the Bunny status.');
         // Keep watching an active transfer through brief outages, backing off each time.
-        if (ACTIVE.includes(stream.value.state) && ++failures <= 5) {
-            timer = setTimeout(() => load(), POLL_MS * 2 ** failures);
-        }
+        failures++;
     } finally {
-        if (refresh && busy.value === 'refresh') busy.value = '';
+        if (id === sequence && !disposed) {
+            if (refresh) busy.value = '';
+            schedule();
+        }
     }
 }
 
 async function action(name, values = {}, success = null) {
     const id = ++sequence;
+    const submittedDraft = name === 'chapters' ? JSON.stringify(chapters.value) : null;
     clearTimeout(timer);
     busy.value = name;
     error.value = '';
@@ -218,27 +252,29 @@ async function action(name, values = {}, success = null) {
         }
         // The response is the fresh status; no second request needed.
         const { data } = await http.post(props.meta.endpoint, payload);
-        if (disposed) return;
+        if (id !== sequence || disposed) return;
         polls = 0;
+        failures = 0;
         stopped.value = false;
-        if (name === 'chapters') savedChapters.value = JSON.stringify(chapters.value);
-        if (id === sequence) apply(data, { syncChapters: name === 'chapters' });
+        // Acknowledge only what was sent, not the draft as it is when Bunny replies.
+        if (submittedDraft !== null) savedChapters.value = submittedDraft;
+        apply(data);
         if (success) Statamic.$toast.success(success);
-        return true;
     } catch (e) {
+        if (id !== sequence || disposed) return;
         error.value = e.response?.data?.message || __('The Bunny action failed.');
         Statamic.$toast.error(error.value);
-        // The request stopped the polling; keep watching a transfer in progress.
-        if (id === sequence && !disposed && ACTIVE.includes(stream.value.state)) timer = setTimeout(() => load(), POLL_MS);
-        return false;
     } finally {
-        busy.value = '';
+        if (id === sequence && !disposed) {
+            busy.value = '';
+            schedule();
+        }
     }
 }
 
 function saveChapters() {
     const payload = chapters.value.map((chapter) => ({ title: chapter.title, start: Number(chapter.start) || 0, end: Number(chapter.end) || 0 }));
-    action('chapters', { chapters: payload }, __('Chapters saved.'));
+    action('chapters', { guid: chapterGuid.value, chapters: payload }, __('Chapters saved.'));
 }
 
 async function thumbnail(event) {
@@ -246,40 +282,25 @@ async function thumbnail(event) {
     if (!file) return;
     const data = new FormData();
     data.append('thumbnail', file);
+    data.append('guid', stream.value.guid);
     await action('thumbnail', data, __('Thumbnail updated.'));
     // Allow choosing the same file again.
     if (thumbnailInput.value) thumbnailInput.value.value = '';
 }
 
-async function transcribe() {
-    if (await action('transcribe')) generating.value = true;
-}
-
-// Unsaved chapters make the asset editor ask before closing (its publish container is named "asset").
-// Only a mark this panel added is removed again, so other unsaved fields keep theirs.
-let markedDirty = false;
-watch(chaptersDirty, (dirty) => {
-    if (!previewArea.value) return;
-    if (dirty && !Statamic.$dirty.has('asset')) {
-        Statamic.$dirty.add('asset');
-        markedDirty = true;
-    } else if (!dirty && markedDirty) {
-        Statamic.$dirty.remove('asset');
-        markedDirty = false;
-    }
-});
-
-// Signed embed URLs change on every request; reload the player only for a different video.
-watch(() => stream.value.embed_url, (url) => {
-    if (!url || url.split('?')[0] !== playerSrc.value?.split('?')[0]) playerSrc.value = url || null;
-});
+// Statamic's page navigation warning uses all dirty keys, but native asset
+// saves and chapter saves must be able to clear their own key independently.
+watch(chaptersDirty, (dirty) => Statamic.$dirty.state(chapterDirtyKey, dirty));
 
 onMounted(() => {
     previewArea.value = root.value?.closest('.asset-editor')?.querySelector('.editor-preview') ?? null;
+    if (previewArea.value) releaseEditorGuard = guardAssetEditor(instance.proxy, () => chaptersDirty.value);
     load();
 });
 onBeforeUnmount(() => {
     disposed = true;
     clearTimeout(timer);
+    releaseEditorGuard?.();
+    Statamic.$dirty.remove(chapterDirtyKey);
 });
 </script>

@@ -47,7 +47,7 @@ The field handle, display name, validation, conditions and instructions stay as 
 - [ ] **Rehearse on staging.** Use a copy of production content, blueprints and asset metadata, and run the whole guide there first.
 - [ ] **Allow enough disk space** on the asset disk for every original in the Bunny library, plus temporary space for the largest single video.
 - [ ] **Have a persistent queue.** The database, Redis or SQS driver all work; `sync` does not. You also need to be able to run and stop its workers.
-- [ ] **Know your content store.** The tool migrates Statamic's flat files: entries, terms, globals, users, asset metadata and entry working copies. If you use the Eloquent driver or a custom repository for any content that contains Bunny fields, those records have to be migrated with your own tooling. The tool refuses rather than skipping them.
+- [ ] **Know your content store.** The tool migrates Statamic's flat files: entries, terms, globals, users, asset metadata and entry working copies. For journaled `.meta` writes it requires a native local disk. If affected data lives in Eloquent, a custom repository, or a remote asset disk, migrate those records with the storage backend's own tooling. The tool refuses rather than skipping them or risking a partial overwrite.
 - [ ] **Know where content changes land.** If content is versioned in Git, plan to commit what the migration changes. Run the migration where the live content files and the live asset disk are.
 - [ ] **Treat video `.meta` files as server-owned.** Queue workers write each video's Bunny record into the asset's `.meta` file on the server. Deploys must not overwrite those files with older copies from Git.
 
@@ -154,6 +154,7 @@ Things to know:
 - **Resumable.** If a video fails, the reason is printed, recorded in `storage/app/bunny-stream/imports-<hash>.json`, and the command exits with a failure code. Fix the cause (see [Troubleshooting](#12-troubleshooting)) and run it again. Videos that are already imported are skipped without being downloaded again.
 - **New legacy uploads.** If editors upload videos through the Media Browser after the import, run the import again just before step 8. Otherwise content that references those videos can't be migrated.
 - **Already-mapped assets.** Assets are matched by library and GUID, so renamed or replaced assets aren't imported twice.
+- **Encoding checks:** An apply queues reads of Bunny's encoding status, never another transfer to Bunny. A preview does not queue jobs or change asset records. A video already claimed by a native asset's in-flight upload is not imported again.
 
 Check a few imported assets in the CP. Each one should show the player in its **Bunny Stream** panel.
 
@@ -241,6 +242,8 @@ The dry run:
 
 Fix any problems it reports, then repeat the dry run until it ends with `N files in this batch.`. The most common problem is a GUID whose video no longer exists in Bunny. Either clear that field or import the video, then run the dry run again.
 
+The migration refuses active legacy defaults and collection or taxonomy `inject` values that would stop working after the schema changes. Move those values to explicit content fields, or remove them and reinstate them as asset paths after the migration. The dry run identifies the definition or content file and the field that needs attention.
+
 You can migrate in batches, for example one handle at a time. A shared fieldset is always migrated for **all** of its consumers at once.
 
 ## 8. Run the field migration
@@ -273,7 +276,7 @@ If the command is interrupted, for example by a crash or a full disk, resume it 
 php artisan bunny-stream:migrate-fields --resume=migration-20261012-193301-f4daa9a6
 ```
 
-Resume first checks every file. A file is accepted only if it is still exactly in its "before" or "after" state, and the command refuses to continue if anything else changed it.
+Resume first checks every file. Each file is replaced atomically and is accepted on resume only if it still exactly matches its "before" or "after" state. The command refuses to continue if anything else changed it.
 
 ## 9. Verify
 
@@ -281,7 +284,7 @@ Resume first checks every file. A file is accepted only if it is still exactly i
 - [ ] In the CP, entries show the video as a selected asset in the former Bunny field.
 - [ ] Editing and saving an entry works, and so does choosing a different video.
 - [ ] A new upload to the container reaches *ready*.
-- [ ] Restoring an older revision of an entry works. Saving a restored working copy converts its GUIDs to assets.
+- [ ] Restoring an older revision uses that revision's blueprint. A restored working copy converts mapped GUIDs to assets and keeps unresolved GUIDs until an editor resolves them.
 - [ ] Bard and Replicator sets, globals, taxonomy terms and users with video fields render correctly.
 
 ## 10. Finish up
@@ -342,6 +345,7 @@ To undo the whole move, also remove the container from `asset_containers`. Impor
 | `Remove conflicting fieldset overrides for …` | A blueprint overrides the imported field's `type` or `max_files`. Remove the override. |
 | `Unsupported nested fieldtype …` / `Unsupported content owner: …` | A Bunny field sits inside a fieldtype or owner the tool can't safely traverse, such as a form, navigation or a third-party fieldtype. Migrate those values by hand, or move the field. |
 | `Unsupported content store for …` | The content lives in a database or custom repository. Migrate it with that store's own tooling. |
+| `No safe atomic metadata write …` | An affected asset's metadata is not on a writable native local disk. Migrate those references with the storage backend's own tooling. |
 | `File changed since migration was prepared: …` | Something wrote to the file during the window. Find the writer, stop it, then resume or roll back. |
 
 ### After migration
@@ -350,5 +354,5 @@ To undo the whole move, also remove the container from `asset_containers`. Impor
 - **"Not synced" on a video that was already streaming.** Its stream record was lost, for example because a deploy overwrote the `.meta` file. Don't click **Retry sync**, which uploads a duplicate. Run `php artisan bunny-stream:repair` to see which Bunny video it matches, then `--apply` to restore the record.
 - **"Not synced" on a new upload.** The queue isn't running or uses `sync`. Fix the queue, then click **Retry sync**.
 - **Stuck in *creating* with an error.** The request that created the Bunny video was interrupted. **Retry sync** is hidden in this state, because retrying would fail the same way. Find the video in Bunny whose title ends with the generation ID shown in the error, paste its GUID into **Attach and retry**, and the upload resumes without creating a duplicate.
-- **Saving content fails with "Unresolved or ambiguous Bunny reference".** A restored old revision contains a GUID that no imported asset matches. Import the video, or clear the field in that revision before saving.
+- **A restored revision has an unresolved Bunny video.** The editor keeps the old GUID and identifies the affected field. Choose a replacement, or import the missing video and reopen the editor. If the field is optional, enable **Remove unresolved Bunny videos** in the sidebar to confirm removing an unresolved reference. Required asset fields still need a replacement.
 - **"Recovered MP4" on an imported asset.** Bunny kept no original, so the asset holds a rendition. If you have the original, use *Replace* or *Reupload* on the asset. A new stream is created, and the old one is kept until the new one is ready.

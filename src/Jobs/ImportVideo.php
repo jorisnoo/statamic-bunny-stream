@@ -2,13 +2,17 @@
 
 namespace Noo\BunnyStream\Jobs;
 
+use Facades\Statamic\Fields\Validator as FieldValidator;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Queue\Middleware\WithoutOverlapping;
+use Illuminate\Support\Facades\Validator;
 use Noo\BunnyStream\Assets\Streams;
 use Noo\BunnyStream\BunnyClient;
 use Statamic\Events\AssetSaved;
 use Statamic\Events\AssetUploaded;
+use Statamic\Rules\AllowedFile;
 
 /**
  * Fills the placeholder asset of a video the browser uploaded straight to Bunny with its
@@ -27,7 +31,7 @@ class ImportVideo implements ShouldQueue
     // Shares SyncVideo's lock, so the two never write the same stream record at once.
     public function middleware(): array
     {
-        return [(new WithoutOverlapping('bunny:'.$this->key))->releaseAfter(30)->expireAfter(3660)];
+        return [(new WithoutOverlapping('bunny:'.$this->key))->shared()->releaseAfter(30)->expireAfter(3660)];
     }
 
     public function backoff(): array { return [30, 120, 600, 1800]; }
@@ -60,10 +64,13 @@ class ImportVideo implements ShouldQueue
             return;
         }
         $data = $asset->get('bunny_stream');
-        $guid = $data['guid'];
+        if ($data['library_id'] !== (string) config('statamic.bunny-stream.library_id')) {
+            throw new \RuntimeException('Bunny library changed; restore its configuration before retrying.');
+        }
+        $guid = $data['pending_guid'] ?? $data['guid'];
         $video = $bunny->video($guid);
         $status = (int) ($video['status'] ?? -1);
-        $ready = in_array($status, [4, 8], true);
+        $ready = Streams::playable($video);
         $failed = in_array($status, [5, 6], true);
         // An original Statamic can't show is replaced by Bunny's MP4, which only exists once
         // encoding is done; don't download the whole original on every poll until then.
@@ -108,47 +115,78 @@ class ImportVideo implements ShouldQueue
         if (! $asset = $this->asset()) {
             return;
         }
+        // Validate the actual stored file with Statamic's native container rules. This is a
+        // server-side download, not a PHP HTTP upload; file size and MIME checks still apply.
+        $file = new UploadedFile($temp, $asset->filename().'.'.$extension, null, UPLOAD_ERR_OK, true);
+        $rules = collect($asset->container()->validationRules())->map(fn ($rule) => FieldValidator::parse($rule))->all();
+        Validator::make(['file' => $file], ['file' => array_merge(['file', new AllowedFile], $rules)])->validate();
+
         $disk = $asset->disk();
         $part = $this->partPath();
-        $stream = fopen($temp, 'rb');
         try {
-            if (! $disk->filesystem()->writeStream($part, $stream)) {
-                throw new \RuntimeException('Unable to write asset source.');
+            $stream = fopen($temp, 'rb');
+            try {
+                if (! $disk->filesystem()->writeStream($part, $stream)) {
+                    throw new \RuntimeException('Unable to write asset source.');
+                }
+            } finally {
+                fclose($stream);
+            }
+            // Writing a large file can take minutes; editors may have deleted, moved or replaced the placeholder.
+            if (! $asset = $this->asset()) {
+                return;
+            }
+            $placeholder = $asset->path();
+            $placeholderMeta = $asset->metaPath();
+            if ($extension === $asset->extension()) {
+                if (! $disk->move($part, $placeholder)) {
+                    throw new \RuntimeException('Unable to replace the asset placeholder.');
+                }
+            } else {
+                // Bunny served another format: rename the asset only after the source has landed.
+                $path = Streams::claimPath($asset->container(), $asset->folder(), $asset->filename(), $extension, function ($path) use ($disk, $part) {
+                    if (! $disk->move($part, $path)) {
+                        throw new \RuntimeException('Unable to finalize the asset source.');
+                    }
+
+                    return $path;
+                });
+                $asset->hydrate();
+                if (! $asset->path($path)->save()) {
+                    $disk->delete($path);
+                    throw new \RuntimeException('Unable to save the renamed asset.');
+                }
             }
         } finally {
-            fclose($stream);
-        }
-        // Writing a large file can take minutes; editors may have deleted, moved or replaced the placeholder.
-        if (! $asset = $this->asset()) {
             $disk->delete($part);
-
-            return;
         }
-        $placeholder = $asset->path();
-        if ($extension === $asset->extension()) {
-            $disk->move($part, $placeholder);
-        } else {
-            // Bunny served another format (e.g. its MP4 for a MOV): move the asset, updating references to it.
-            $placeholderMeta = $asset->metaPath();
-            $path = Streams::claimPath($asset->container(), $asset->folder(), $asset->filename(), $extension, function ($path) use ($disk, $part) {
-                $disk->move($part, $path);
-
-                return $path;
-            });
-            $asset->hydrate();
-            $asset->path($path)->save();
+        // Saving regenerates the file's size, dimensions and duration. Quietly: the saving
+        // listener would put back the stored record.
+        $data = $asset->get('bunny_stream');
+        $guid = $data['pending_guid'] ?? $data['guid'];
+        $current = Streams::video($data)?->guid();
+        if (! $asset->set('bunny_stream', array_merge($data, [
+            'placeholder' => null, 'derivative' => null, 'source' => $source,
+            'direct_upload' => true,
+            'guid' => $ready ? $guid : ($current ?? $guid),
+            'guid_ready' => $ready || $current !== null,
+            'pending_guid' => ! $ready && $current !== null ? $guid : null,
+            'metadata' => $ready || $current === null ? $video : ($data['metadata'] ?? []),
+            'pending_metadata' => ! $ready && $current !== null ? $video : null,
+            'state' => $failedStatus ? 'not_synced' : ($ready ? 'ready' : 'remote_unready'),
+            'error' => $failedStatus ? 'Bunny could not encode this video (status '.$failedStatus.'). Retry sync to upload it again.' : null,
+        ]))->saveQuietly()) {
+            throw new \RuntimeException('Unable to save the imported asset.');
+        }
+        if ($asset->path() !== $placeholder) {
             $disk->delete($placeholder);
             if ($placeholderMeta !== $placeholder) {
                 $disk->delete($placeholderMeta);
             }
         }
-        // Saving regenerates the file's size, dimensions and duration. Quietly: the saving
-        // listener would put back the stored record.
-        $asset->set('bunny_stream', array_merge($asset->get('bunny_stream'), [
-            'placeholder' => null, 'derivative' => null, 'source' => $source, 'metadata' => $video,
-            'state' => $failedStatus ? 'not_synced' : ($ready ? 'ready' : 'remote_unready'),
-            'error' => $failedStatus ? 'Bunny could not encode this video (status '.$failedStatus.'). Retry sync to upload it again.' : null,
-        ]))->saveQuietly();
+        if ($ready && $current && $current !== $guid) {
+            Streams::delete($current, $data['library_id']);
+        }
         AssetSaved::dispatch($asset);
         AssetUploaded::dispatch($asset, $asset->basename());
         if (! $ready && ! $failedStatus) {

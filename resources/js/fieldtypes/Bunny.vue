@@ -26,7 +26,7 @@
         <div v-if="value && selectedOption?.image" class="tw:mt-3 tw:max-w-xs">
             <VideoPoster
                 :thumbnail="selectedOption.image"
-                :duration="preview?.duration ?? selectedOption.duration"
+                :duration="(preview?.guid === value ? preview.duration : null) ?? selectedOption.duration"
                 :label="__('Play :title', { title: selectedOption.title })"
                 :disabled="loadingPreview"
                 @play="openPreview"
@@ -129,13 +129,10 @@ const preview = ref(null);
 const previewOpen = ref(false);
 const loadingPreview = ref(false);
 
-// Fetch the signed player URL on demand; it can't be built in the browser.
+// Fetch a fresh signed player URL on every opening; a previous token may have expired.
 function openPreview() {
-    if (preview.value?.guid === props.value) {
-        previewOpen.value = true;
-        return;
-    }
     const guid = props.value;
+    if (!guid || loadingPreview.value) return;
     loadingPreview.value = true;
     http.get(props.meta.previewUrl.replace('__GUID__', guid))
         .then(({ data }) => {

@@ -2,25 +2,14 @@ import Uppy from '@uppy/core';
 import { reactive } from 'vue';
 import * as api from './api.js';
 import UppyBunnyCreator from './UppyBunnyCreator.js';
+import { browseLocation } from './nativeAssets.js';
 import { useBunnyTus } from './bunnyTus.js';
 
 let uppy = null;
 let target = null;
 
 // What the upload modal (components/AssetUpload.vue) shows; kept here so uploads outlive the modal.
-export const assetUploads = reactive({ open: false, files: [] });
-
-// The container and folder open in the asset browser, read from its URL (assets/browse/{container}/{folder}).
-export function browseLocation() {
-    const base = new URL(`${Statamic.$config.get('cpUrl')}/assets/browse/`, window.location.origin).pathname.replace(/\/+/g, '/');
-    if (!window.location.pathname.startsWith(base)) {
-        return null;
-    }
-    const [container, ...segments] = decodeURIComponent(window.location.pathname.slice(base.length)).split('/').filter(Boolean);
-
-    // An open asset editor appends "{file}/edit".
-    return container ? { container, folder: (segments.at(-1) === 'edit' ? segments.slice(0, -2) : segments).join('/') } : null;
-}
+export const assetUploads = reactive({ open: false, files: [], destination: '' });
 
 function status(file) {
     if (file.error || file.meta.importError) return 'error';
@@ -125,6 +114,7 @@ export function clearFinishedUploads() {
 export function openAssetUpload({ container, endpoint }) {
     const location = browseLocation();
     target = { container, endpoint, folder: location?.container === container ? location.folder : '' };
+    assetUploads.destination = [target.container, target.folder].filter(Boolean).join('/');
 
     if (!uppy) {
         setup();

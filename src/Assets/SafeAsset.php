@@ -3,6 +3,7 @@
 namespace Noo\BunnyStream\Assets;
 
 use Statamic\Assets\Asset;
+use Statamic\Facades\YAML;
 
 /**
  * Statamic's asset with two data-loss fixes.
@@ -22,20 +23,42 @@ class SafeAsset extends Asset
 
     public function generateMeta()
     {
-        // Skip brand-new assets: there is nothing to keep, and hydrating would run getID3 twice.
-        if (! $this->generatingMeta && ($this->meta !== null || $this->disk()->exists($this->metaPath()))) {
-            $this->generatingMeta = true;
-            try {
-                $this->hydrate();
-            } finally {
-                $this->generatingMeta = false;
-            }
+        if ($this->generatingMeta || ! $this->path() || ! Streams::enabled($this)) {
+            return parent::generateMeta();
         }
 
-        $meta = parent::generateMeta();
-        $loaded = $this->getOriginal('data.bunny_stream');
-        if (($meta['data']['bunny_stream'] ?? null) === $loaded && $this->disk()->exists($this->metaPath())) {
-            $meta['data']['bunny_stream'] = Streams::persisted($this);
+        $disk = $this->disk();
+        if (! $disk->exists($path = $this->metaPath())) {
+            return parent::generateMeta();
+        }
+
+        $this->generatingMeta = true;
+        try {
+            if (config('statamic.assets.cache_meta')) {
+                $this->hydrate();
+                $meta = parent::generateMeta();
+                $loaded = $this->getOriginal('data.bunny_stream');
+                $stored = ($meta['data']['bunny_stream'] ?? null) === $loaded
+                    ? Streams::persisted($this) : null;
+            } else {
+                // Recalculate file attributes, but still load custom data from the sidecar.
+                // getOriginal() calls meta('data') and would re-enter this branch.
+                $contents = $disk->get($path);
+                $storedData = $contents ? (YAML::parse($contents)['data'] ?? []) : [];
+                $meta = parent::generateMeta();
+                if ($this->meta === null) {
+                    $meta['data'] = array_diff_key(array_replace($storedData, $meta['data']), array_flip($this->removedData));
+                }
+                $original = $this->getRawOriginal()['data'] ?? null;
+                $stored = $storedData['bunny_stream'] ?? null;
+                $loaded = is_array($original) ? ($original['bunny_stream'] ?? null) : $stored;
+            }
+
+            if (($meta['data']['bunny_stream'] ?? null) === $loaded && (Streams::managed($stored) || Streams::managed($loaded))) {
+                $meta['data']['bunny_stream'] = $stored;
+            }
+        } finally {
+            $this->generatingMeta = false;
         }
 
         return $meta;

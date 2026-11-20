@@ -108,11 +108,14 @@ class ReleaseTests(unittest.TestCase):
         self.assertFalse((self.repo / "check-ran").exists())
 
     def test_publish_only_requested_tag(self):
+        self.git("config", "push.followTags", "true")
+        self.git("tag", "-a", "unrelated-annotated", "-m", "Local only")
         r = self.release("1.0.1")
         self.assertEqual(r.returncode, 0, r.stderr)
         refs = self.git("ls-remote", "origin")
         self.assertIn("refs/tags/1.0.1", refs)
         self.assertNotIn("scratch-local", refs)
+        self.assertNotIn("unrelated-annotated", refs)
         self.assertEqual(self.git("cat-file", "-t", "1.0.1"), "tag")
 
     def test_signed_release(self):
@@ -146,6 +149,19 @@ class ReleaseTests(unittest.TestCase):
                 self.assert_rejected(
                     "prefix" if v != "1.0.1-beta.01" else "leading zeroes", v
                 )
+
+    def test_release_uses_composer_prereleases(self):
+        for suffix in ["preview.1", "stable", "alpha.beta", "beta.1.2"]:
+            with self.subTest(suffix=suffix):
+                version = f"1.1.0-{suffix}"
+                self.notes(f"## [{version}]\n- Notes.\n")
+                self.assert_rejected("Composer-compatible prerelease", version, "--notes")
+        for suffix in ["alpha", "beta.2", "rc.1"]:
+            with self.subTest(suffix=suffix):
+                version = f"1.1.0-{suffix}"
+                self.notes(f"## [{version}]\n- Notes.\n")
+                result = self.release(version, "--notes")
+                self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_missing_empty_duplicate_notes(self):
         for content, message in [

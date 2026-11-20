@@ -35,19 +35,35 @@ class Streams
     }
 
     // The stored value, re-read so writes from queue workers since this request loaded the asset win.
-    public static function persisted($asset): ?array
+    public static function persisted($asset): mixed
     {
-        $disk = $asset->disk();
+        $originalPath = $asset->getOriginal('path') ?? $asset->path();
         $path = $asset->metaPath();
         if ($path !== $asset->path()) {
+            if ($originalPath !== $asset->path()) {
+                $path = (clone $asset)->path($originalPath)->metaPath();
+            }
+            $disk = $asset->disk();
+
             return $disk->exists($path) ? (\Statamic\Facades\YAML::parse($disk->get($path))['data']['bunny_stream'] ?? null) : null;
         }
 
         // Database-backed drivers keep no .meta file (the Eloquent driver's metaPath() is the media file).
-        // Read the stored row at the path it was loaded from: a save may be moving the asset.
-        $stored = self::fresh($asset->containerHandle().'::'.($asset->getOriginal('path') ?? $asset->path()));
+        $stored = self::fresh($asset->containerHandle().'::'.$originalPath);
 
         return $stored ? $stored->get('bunny_stream') : $asset->getOriginal('data.bunny_stream');
+    }
+
+    public static function managed(mixed $value): bool
+    {
+        if (! is_array($value) || ! in_array($value['state'] ?? null, [
+            'not_synced', 'queued', 'creating', 'uploading', 'processing', 'failed', 'remote_unready', 'ready',
+        ], true)) {
+            return false;
+        }
+
+        return isset($value['key']) || isset($value['guid']) || isset($value['library_id']) || isset($value['generation']) || isset($value['pending_guid'])
+            || ($value['state'] === 'not_synced' && isset($value['error']));
     }
 
     /**
@@ -87,29 +103,42 @@ class Streams
         if (! self::enabled($asset)) {
             return;
         }
-        self::requireQueue();
-        $data = $asset->get('bunny_stream', []);
-        if (isset($data['library_id']) && $data['library_id'] !== (string) config('statamic.bunny-stream.library_id')) {
-            throw new \RuntimeException('Bunny library changed; refusing to replace an existing stream.');
-        }
-        if (! $replace && ! empty($data)) {
+        $data = $asset->get('bunny_stream');
+        if ($data !== null && ! self::managed($data)) {
             return;
         }
-        foreach (array_filter([$data['pending_guid'] ?? null]) as $guid) {
-            self::delete($guid, $data['library_id']);
+        $data ??= [];
+        if (! $replace && $data) {
+            return;
         }
+        $library = (string) config('statamic.bunny-stream.library_id');
+        if (isset($data['library_id']) && $data['library_id'] !== $library) {
+            throw new \RuntimeException('Bunny library changed; refusing to replace an existing stream.');
+        }
+        self::requireQueue();
+        $current = self::video($data)?->guid();
+        $superseded = array_diff(array_unique(array_filter([$data['guid'] ?? null, $data['pending_guid'] ?? null])), [$current]);
         $data = array_merge($data, [
             'key' => $data['key'] ?? (string) Str::uuid(),
             'generation' => (string) Str::uuid(),
-            'library_id' => (string) config('statamic.bunny-stream.library_id'),
+            'library_id' => $library,
             'state' => 'queued',
+            'guid' => $current,
+            'guid_ready' => $current !== null,
+            'metadata' => $current ? ($data['metadata'] ?? []) : null,
             'pending_guid' => null,
+            'pending_metadata' => null,
             'placeholder' => null,
+            'derivative' => null,
+            'direct_upload' => null,
             'error' => null,
             'source' => 'original',
             'legacy_guids' => array_values(array_unique(array_filter(array_merge($data['legacy_guids'] ?? [], [$data['guid'] ?? null])))),
         ]);
         $asset->set('bunny_stream', $data)->saveQuietly();
+        foreach ($superseded as $guid) {
+            self::delete($guid, $library);
+        }
         // Give replacement listeners time to merge the previous stream before a worker reads the asset.
         self::dispatch($asset, now()->addSeconds(10));
     }
@@ -121,7 +150,16 @@ class Streams
             self::queue($asset, $replace);
         } catch (\RuntimeException $e) {
             report($e);
-            $asset->set('bunny_stream', array_merge($asset->get('bunny_stream', []), ['state' => 'not_synced', 'error' => $e->getMessage()]))->saveQuietly();
+            $data = $asset->get('bunny_stream') ?? [];
+            if (! $data || self::managed($data)) {
+                $asset->set('bunny_stream', array_merge($data, [
+                    'guid_ready' => self::video($data) !== null,
+                    'library_id' => $data['library_id'] ?? (string) config('statamic.bunny-stream.library_id'),
+                    'state' => 'not_synced',
+                    'placeholder' => null,
+                    'error' => $e->getMessage(),
+                ]))->saveQuietly();
+            }
         }
     }
 
@@ -222,6 +260,21 @@ class Streams
         if (empty($data['guid'])) {
             return null;
         }
-        return BunnyVideo::make($data['guid'], $data['library_id'] ?? null, $data['metadata']['thumbnailFileName'] ?? 'thumbnail.jpg');
+        // Old ready records have no explicit marker. Old replacements kept the last playable
+        // video's metadata; an in-place poll instead used the same GUID as its pending GUID.
+        $ready = $data['guid_ready'] ?? (
+            empty($data['placeholder']) && (($data['state'] ?? null) === 'ready' || (
+                in_array($data['state'] ?? null, ['queued', 'creating', 'uploading', 'processing', 'failed', 'not_synced'], true)
+                && $data['guid'] !== ($data['pending_guid'] ?? null)
+                && is_array($data['metadata'] ?? null) && self::playable($data['metadata'])
+            ))
+        );
+
+        return $ready ? BunnyVideo::make($data['guid'], $data['library_id'] ?? null, $data['metadata']['thumbnailFileName'] ?? 'thumbnail.jpg') : null;
+    }
+
+    public static function playable(array $video): bool
+    {
+        return in_array((int) ($video['status'] ?? -1), [4, 8], true);
     }
 }

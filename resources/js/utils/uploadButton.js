@@ -1,6 +1,7 @@
 import { h, render } from 'vue';
 import { Button } from '@statamic/cms/ui';
-import { browseLocation, openAssetUpload } from './assetUpload.js';
+import { openAssetUpload } from './assetUpload.js';
+import { browseLocation } from './nativeAssets.js';
 
 const hosts = new Set();
 
@@ -11,16 +12,17 @@ function unmount(host) {
 }
 
 function sync({ containers, endpoint }) {
-    const container = browseLocation()?.container;
+    const location = browseLocation();
+    const container = location?.container;
 
     // Drop buttons whose header is gone, or that belong to another container: the browser
     // stays mounted when switching containers.
     for (const host of hosts) {
         if (!host.isConnected || host.dataset.bunnyUpload !== container) unmount(host);
     }
-    if (!containers.includes(container)) return;
+    if (!location || !containers.includes(container)) return;
 
-    for (const header of document.querySelectorAll('[data-ui-header]')) {
+    for (const header of location.root.querySelectorAll('[data-ui-header]')) {
         if (header.querySelector('[data-bunny-upload]')) continue;
 
         const upload = [...header.querySelectorAll('button')].find((button) => button.textContent.trim() === __('Upload'));

@@ -5,6 +5,7 @@ namespace Noo\BunnyStream\Jobs;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Http\Client\RequestException;
+use Noo\BunnyStream\Assets\Streams;
 use Noo\BunnyStream\BunnyClient;
 
 class DeleteVideo implements ShouldQueue
@@ -25,9 +26,10 @@ class DeleteVideo implements ShouldQueue
         if ($this->library !== (string) config('statamic.bunny-stream.library_id')) {
             throw new \RuntimeException('Bunny library changed; refusing to delete from another library.');
         }
-        foreach (\Noo\BunnyStream\Assets\Streams::assets() as $asset) {
-            $data = $asset->get('bunny_stream', []);
-            if (($data['library_id'] ?? null) === $this->library && in_array($this->guid, [$data['guid'] ?? null, $data['pending_guid'] ?? null], true)) {
+        foreach (Streams::assets() as $asset) {
+            $data = Streams::persisted($asset);
+            if (Streams::managed($data) && ($data['library_id'] ?? null) === $this->library
+                && in_array($this->guid, [$data['guid'] ?? null, $data['pending_guid'] ?? null], true)) {
                 return;
             }
         }

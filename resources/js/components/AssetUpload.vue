@@ -1,5 +1,6 @@
 <template>
     <Modal v-model:open="assetUploads.open" :title="__('Upload Video')" icon="upload-cloud">
+        <p class="tw:mb-3 tw:text-sm tw:break-words">{{ __('Uploading to :location', { location: assetUploads.destination }) }}</p>
         <div
             class="tw:relative tw:overflow-hidden tw:rounded-xl tw:border tw:border-dashed tw:border-gray-300 tw:bg-gray-50 tw:dark:border-gray-700 tw:dark:bg-gray-850"
             @dragenter.prevent="dragenter"

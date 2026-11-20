@@ -2,7 +2,9 @@
 
 namespace Noo\BunnyStream\Migration;
 
+use Illuminate\Filesystem\FilesystemAdapter;
 use Illuminate\Support\Facades\Storage;
+use League\Flysystem\Local\LocalFilesystemAdapter;
 
 class Journal
 {
@@ -18,15 +20,7 @@ class Journal
             throw new \RuntimeException('Cannot create migration directory.');
         }
         $path = $directory.'/'.basename($name).'.json';
-        $temp = tempnam($directory, '.journal-');
-        try {
-            chmod($temp, 0600);
-            if (file_put_contents($temp, json_encode($data, JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR)) === false || ! rename($temp, $path)) {
-                throw new \RuntimeException('Cannot persist migration journal.');
-            }
-        } finally {
-            if (is_file($temp)) { unlink($temp); }
-        }
+        self::replace($path, json_encode($data, JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR), 0600);
     }
 
     public static function read(string $name): array
@@ -49,6 +43,50 @@ class Journal
         return $file + ['before' => base64_encode(self::contents($file)), 'after' => base64_encode($after)];
     }
 
+    public static function assertWritable(array $file): void
+    {
+        self::localPath($file);
+    }
+
+    private static function localPath(array $file): string
+    {
+        $path = $file['path'];
+        if (! isset($file['disk'])) { return $path; }
+
+        $disk = Storage::disk($file['disk']);
+        if (! $disk instanceof FilesystemAdapter || get_class($disk->getAdapter()) !== LocalFilesystemAdapter::class
+            || ($disk->getConfig()['read-only'] ?? false)) {
+            throw new \RuntimeException('No safe atomic metadata write for '.$file['disk'].'::'.$path.'. Migrate these references through their storage backend before running this batch.');
+        }
+
+        return $disk->path($path);
+    }
+
+    private static function replace(string $path, string $bytes, int $permissions): void
+    {
+        $directory = realpath(dirname($path));
+        if ($directory === false || ($temp = tempnam($directory, '.bunny-')) === false) {
+            throw new \RuntimeException('Cannot stage atomic write for '.$path);
+        }
+        try {
+            if (dirname($temp) !== $directory || ! chmod($temp, $permissions) || ! ($stream = fopen($temp, 'wb'))) {
+                throw new \RuntimeException('Cannot stage atomic write for '.$path);
+            }
+            try {
+                if (fwrite($stream, $bytes) !== strlen($bytes) || ! fflush($stream) || ! fsync($stream)) {
+                    throw new \RuntimeException('Unable to write '.$path);
+                }
+            } finally {
+                fclose($stream);
+            }
+            if (! rename($temp, $path)) {
+                throw new \RuntimeException('Unable to replace '.$path);
+            }
+        } finally {
+            if (is_file($temp)) { unlink($temp); }
+        }
+    }
+
     public static function apply(string $run, bool $rollback = false): void
     {
         $journal = self::read($run);
@@ -60,6 +98,7 @@ class Journal
         }
         // Preflight the entire batch before touching any file, including on resume.
         foreach ($journal['files'] as $file) {
+            self::assertWritable($file);
             $current = base64_encode(self::contents($file));
             if ($current !== $file['before'] && $current !== $file['after']) {
                 throw new \RuntimeException('File changed since migration was prepared: '.$file['path']);
@@ -76,21 +115,13 @@ class Journal
             if (self::contents($file) !== $expected) {
                 throw new \RuntimeException('Concurrent edit: '.$file['path']);
             }
-            if (isset($file['disk'])) {
-                if (! Storage::disk($file['disk'])->put($file['path'], $target)) {
-                    throw new \RuntimeException('Unable to write '.$file['path']);
-                }
-            } else {
-                $temp = tempnam(dirname($file['path']), '.bunny-');
-                try {
-                    chmod($temp, fileperms($file['path']) & 0777);
-                    if (file_put_contents($temp, $target) === false || ! rename($temp, $file['path'])) {
-                        throw new \RuntimeException('Unable to write '.$file['path']);
-                    }
-                } finally {
-                    if (is_file($temp)) { unlink($temp); }
-                }
+            $path = self::localPath($file);
+            $path = realpath($path) ?: $path;
+            $permissions = fileperms($path);
+            if ($permissions === false || $target === false) {
+                throw new \RuntimeException('Unable to write '.$path);
             }
+            self::replace($path, $target, $permissions & 0777);
         }
         $journal['state'] = $rollback ? 'rolled_back' : 'complete';
         self::write($run, $journal);

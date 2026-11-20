@@ -122,13 +122,19 @@ def main():
         help="Print validated release notes only (for CI)",
     )
     args = parser.parse_args()
-    version_parts(args.version)
+    _, prerelease = version_parts(args.version)
     config = json.loads((ROOT / ".release.json").read_text())
     if config.get("stable_only") and "-" in args.version:
         fail(
             "This app uses numeric Apple bundle versions; "
             "release X.Y.Z without a prerelease suffix."
         )
+    if prerelease and (
+        prerelease[0] not in {"alpha", "beta", "rc"}
+        or len(prerelease) > 2
+        or (len(prerelease) == 2 and not prerelease[1].isdigit())
+    ):
+        fail("Use a Composer-compatible prerelease: alpha, beta, or rc, optionally followed by .N.")
     for file in config.get("version_files", []):
         data = json.loads((ROOT / file).read_text())
         if data.get("version") != args.version:
@@ -219,6 +225,7 @@ def main():
         "git",
         "push",
         "--atomic",
+        "--no-follow-tags",
         "origin",
         f"HEAD:refs/heads/{branch}",
         f"refs/tags/{args.version}",

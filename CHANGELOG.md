@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Keep asset metadata and existing playback intact during uploads, replacement, and encoding. Direct uploads now enforce container rules and retain their placeholder if storage fails.
+- Harden journaled migrations, historical revision recovery, and stream repair against incomplete conversions or ambiguous matches.
+- Keep native asset and chapter edits separate, preserve refreshed chapters and player URLs, and use the active folder for direct uploads.
+- Keep playlist compatibility with 2.4.x and limit releases to the intended tag and Composer-compatible prerelease versions.
+
 ## [2.4.1](https://github.com/jorisnoo/statamic-bunny-stream/releases/tag/2.4.1) (2026-10-27)
 
 ### Bug Fixes

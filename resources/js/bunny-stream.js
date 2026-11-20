@@ -4,12 +4,15 @@ import Overview from './components/Overview.vue';
 import AssetPlayer from './components/player/AssetPlayer.vue';
 import AssetUpload from './components/AssetUpload.vue';
 import { openAssetUpload } from './utils/assetUpload.js';
+import { configureNativeAssets } from './utils/nativeAssets.js';
 import { addUploadButton } from './utils/uploadButton.js';
 
 // Streamed videos among an Assets field's selection (flagged by the addon's asset hook).
 const streams = (meta) => (meta?.data ?? [])
     .filter((asset) => asset.bunny_stream?.playable)
     .map((asset) => ({ id: asset.id, title: asset.basename, thumbnail: asset.thumbnail, endpoint: asset.bunny_stream.endpoint }));
+
+Statamic.configuring(configureNativeAssets);
 
 Statamic.booting(() => {
     Statamic.$inertia.register('BunnyOverview', Overview);

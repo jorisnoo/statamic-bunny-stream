@@ -70,12 +70,13 @@ class ServiceProvider extends AddonServiceProvider
 
     public static function registerGates(): void
     {
-        // The legacy picker lists the whole library; limit it to people who can edit something.
+        // The legacy picker lists the whole library; limit it to people who can edit content.
         Gate::define('use bunny fieldtype', function ($user) {
             $user = User::fromUser($user);
 
             return $user && ($user->isSuper() || $user->hasPermission('manage bunny videos')
-                || collect($user->permissions())->contains(fn ($permission) => str_starts_with($permission, 'edit ')));
+                || collect($user->permissions())->contains(fn ($permission) => str_starts_with($permission, 'edit ')
+                    || (str_starts_with($permission, 'create ') && str_ends_with($permission, ' entries'))));
         });
     }
 
@@ -95,16 +96,17 @@ class ServiceProvider extends AddonServiceProvider
         $hook = function ($payload, $next) {
             $asset = $this->resource;
             if ($asset instanceof \Statamic\Contracts\Assets\Asset && Assets\Streams::enabled($asset)) {
-                $data = $asset->get('bunny_stream') ?? [];
+                $data = $asset->get('bunny_stream');
+                $data = is_array($data) ? $data : [];
                 $video = Assets\Streams::video($data);
-                // Until its first encode is done, Bunny has neither a thumbnail nor a playable stream.
-                $encoding = $video && ($data['state'] ?? null) !== 'ready' && (($data['pending_guid'] ?? null) ?: $data['guid']) === $data['guid'];
                 if ($video) {
-                    $payload->data->thumbnail = $encoding ? ServiceProvider::processingThumbnail() : $video->thumbnail();
+                    $payload->data->thumbnail = $video->thumbnail();
+                } elseif (! empty($data['guid']) && empty($data['error'])) {
+                    $payload->data->thumbnail = ServiceProvider::processingThumbnail();
                 }
                 // Lets the "Play video" field action find streams among an Assets field's selection.
                 $payload->data->bunny_stream = [
-                    'playable' => $video && ! $encoding,
+                    'playable' => $video !== null,
                     'state' => $data['state'] ?? 'not_synced',
                     'endpoint' => cp_route('bunny.cp.asset'),
                 ];
@@ -135,7 +137,8 @@ class ServiceProvider extends AddonServiceProvider
     public static function protectAssetMetadata(): void
     {
         // Only replace Statamic's own class; other asset drivers (e.g. Eloquent) keep theirs.
-        if (get_class(app(\Statamic\Contracts\Assets\Asset::class)) !== \Statamic\Assets\Asset::class) {
+        if (! config('statamic.bunny-stream.asset_containers')
+            || get_class(app(\Statamic\Contracts\Assets\Asset::class)) !== \Statamic\Assets\Asset::class) {
             return;
         }
         app()->bind(\Statamic\Contracts\Assets\Asset::class, Assets\SafeAsset::class);
@@ -148,6 +151,7 @@ class ServiceProvider extends AddonServiceProvider
 
     public function bootAddon(): void
     {
+        $this->mergeConfigFrom(__DIR__ . '/../config/bunny-stream.php', 'statamic.bunny-stream');
         static::protectAssetMetadata();
         static::registerGates();
         static::registerAssetHooks();
@@ -176,7 +180,6 @@ class ServiceProvider extends AddonServiceProvider
         $this->app['events']->subscribe(Assets\Subscriber::class);
         $this->app['events']->subscribe(Migration\RestoreSubscriber::class);
 
-        $this->mergeConfigFrom(__DIR__ . '/../config/bunny-stream.php', 'statamic.bunny-stream');
         $this->loadJsonTranslationsFrom(__DIR__ . '/../lang');
 
         $this->publishes([

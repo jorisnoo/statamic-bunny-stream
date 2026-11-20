@@ -4,6 +4,7 @@ namespace Noo\BunnyStream\Console\Commands;
 
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Cache;
+use Noo\BunnyStream\Migration\FieldsetOverlay;
 use Noo\BunnyStream\Migration\Journal;
 
 class RollbackCommand extends Command
@@ -18,6 +19,7 @@ class RollbackCommand extends Command
         if (! $lock->get()) { $this->error('Another migration is running.'); return self::FAILURE; }
         try {
             Journal::apply($this->argument('run'), true);
+            FieldsetOverlay::refresh();
             $this->call('statamic:stache:clear');
             foreach (\Noo\BunnyStream\Assets\Streams::assets() as $asset) { $asset->cacheStore()->forget($asset->metaCacheKey()); }
             if (config('statamic.static_caching.strategy')) { $this->call('statamic:static:clear'); }

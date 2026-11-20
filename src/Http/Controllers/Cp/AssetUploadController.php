@@ -76,10 +76,10 @@ class AssetUploadController extends CpController
                     abort_unless($container->disk()->put($path, ''), 500, 'Unable to create the asset.');
                     $asset = Asset::make()->container($container)->path($path);
                     // Saved quietly: the saving listener would discard a stream record on a file without metadata.
-                    $asset->set('bunny_stream', array_filter([
+                    $asset->set('bunny_stream', [
                         'key' => (string) Str::uuid(), 'generation' => $upload['generation'], 'library_id' => (string) config('statamic.bunny-stream.library_id'),
-                        'guid' => $guid, 'state' => 'remote_unready', 'placeholder' => true, 'derivative' => $derivative,
-                    ]))->saveQuietly();
+                        'guid' => $guid, 'guid_ready' => false, 'state' => 'remote_unready', 'placeholder' => true, 'derivative' => $derivative,
+                    ])->saveQuietly();
 
                     return $asset;
                 });

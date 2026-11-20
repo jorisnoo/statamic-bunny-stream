@@ -48,7 +48,7 @@ class BunnyVideo extends ArrayableString
 
         return match (true) {
             $value instanceof self => $value,
-            $value instanceof Asset => Streams::video($value->get('bunny_stream')),
+            $value instanceof Asset => Streams::video(is_array($data = $value->get('bunny_stream')) ? $data : null),
             is_string($value) && Str::isUuid($value) => self::make($value),
             default => null,
         };

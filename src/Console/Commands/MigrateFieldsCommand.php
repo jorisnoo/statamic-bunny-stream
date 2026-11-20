@@ -9,10 +9,14 @@ use Noo\BunnyStream\Migration\Definitions;
 use Noo\BunnyStream\Migration\FieldsetOverlay;
 use Noo\BunnyStream\Migration\Journal;
 use Noo\BunnyStream\Migration\References;
+use Noo\BunnyStream\Migration\RevisionBlueprint;
 use Statamic\Contracts\Assets\Asset as AssetContract;
 use Statamic\Facades\Blueprint;
+use Statamic\Facades\Collection;
 use Statamic\Facades\Fieldset;
+use Statamic\Facades\Taxonomy;
 use Statamic\Facades\YAML;
+use Statamic\Fields\Blueprint as BlueprintDefinition;
 use Statamic\Listeners\Concerns\GetsItemsContainingData;
 
 class MigrateFieldsCommand extends Command
@@ -39,6 +43,7 @@ class MigrateFieldsCommand extends Command
                 if (! $run) { return self::SUCCESS; }
                 Journal::apply($run);
             }
+            FieldsetOverlay::refresh();
             $this->call('statamic:stache:clear');
             foreach (Streams::assets() as $asset) { $asset->cacheStore()->forget($asset->metaCacheKey()); }
             if (config('statamic.static_caching.strategy')) { $this->call('statamic:static:clear'); }
@@ -74,62 +79,75 @@ class MigrateFieldsCommand extends Command
         })->merge(iterator_to_array(Streams::assets(), false));
         $blueprints = [];
         foreach ($items as $item) {
-            if ($blueprint = $item->blueprint()) { $blueprints[$blueprint->namespace().'/'.$blueprint->handle()] = $blueprint; }
-        }
-        // Include unused blueprints so their fields do not retain the legacy type.
-        $directory = Blueprint::directory();
-        if (is_dir($directory)) {
-            foreach (new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($directory, \FilesystemIterator::SKIP_DOTS)) as $file) {
-                if ($file->getExtension() !== 'yaml') { continue; }
-                $handle = substr($file->getPathname(), strlen(rtrim($directory, '/')) + 1, -5);
-                if ($blueprint = Blueprint::find($handle)) { $blueprints[$blueprint->namespace().'/'.$blueprint->handle()] = $blueprint; }
+            if ($blueprint = $item->blueprint()) {
+                $blueprints[$blueprint->fullyQualifiedHandle()] = $blueprint;
             }
         }
+        // Include unused blueprints and owner directories separate from the default.
+        foreach ($this->blueprintsIn(Blueprint::directory()) as $key => $blueprint) {
+            $blueprints[$key] ??= $blueprint;
+        }
+        foreach ((array) config('statamic.system.blueprints_path') as $namespace => $directory) {
+            if (is_string($namespace) && $namespace !== 'default') {
+                foreach ($this->blueprintsIn($directory, $namespace.'.') as $key => $blueprint) {
+                    $blueprints[$key] ??= $blueprint;
+                }
+            }
+        }
+        foreach (Blueprint::getAdditionalNamespaces() as $namespace => $directory) {
+            foreach ([$directory, Blueprint::directory().'/vendor/'.str_replace('.', '/', $namespace)] as $path) {
+                foreach ($this->blueprintsIn($path, $namespace.'::') as $key => $blueprint) {
+                    $blueprints[$key] ??= $blueprint;
+                }
+            }
+        }
+
         $files = [];
-        foreach (Fieldset::all() as $fieldset) {
-            $fieldset = Fieldset::find($fieldset->handle());
+        $overlay->convertUsing(function ($fieldset) use ($handles, $container, $library, &$files) {
             $this->definition($fieldset, $handles, $container, $library, $files);
-            $overlay->remember($fieldset);
+        });
+        foreach (Fieldset::all() as $fieldset) {
+            Fieldset::find($fieldset->handle());
         }
-        foreach ($blueprints as $blueprint) {
+        foreach ($blueprints as $key => $blueprint) {
+            $blueprint = clone $blueprint;
             $this->definition($blueprint, $handles, $container, $library, $files);
-        }
-        foreach ($blueprints as $blueprint) {
-            $namespace = explode('.', $blueprint->namespace() ?? '')[0];
-            if (! in_array($namespace, ['collections', 'taxonomies', 'globals', 'assets'], true) && $blueprint->handle() !== 'user'
-                && Definitions::hasMigrated($blueprint->contents())) {
-                throw new \RuntimeException('Unsupported content owner: '.$blueprint->path().'. Migrate its records before changing this shared definition.');
+            if (! $this->supportedOwner($blueprint) && Definitions::hasMigrated($blueprint->contents())) {
+                throw new \RuntimeException('Unsupported content owner: '.($blueprint->initialPath() ?: $blueprint->path()).'. Migrate its records before changing this shared definition.');
             }
+            $blueprints[$key] = $blueprint;
         }
-        // Re-resolve every item blueprint after shared fieldsets have changed in memory.
-        // Collect every unresolved reference so one dry run lists all of them.
+        $this->assertInjects($blueprints);
+
         $problems = [];
         foreach ($items as $item) {
-            $blueprint = $item->blueprint();
-            if (! $blueprint) { continue; }
-            Definitions::clearImports($blueprint->contents());
-            $blueprint->setContents(Definitions::convert($blueprint->contents(), $handles, $container, $library));
-            try {
+            $label = $this->describe($item);
+            $this->inspect($label, $problems, function () use ($item, $blueprints, &$files) {
+                if (! $blueprint = $item->blueprint()) { return; }
                 $copy = clone $item;
-                if (References::item($copy)->convert()) {
+                if (References::item($copy)->convert($blueprints[$blueprint->fullyQualifiedHandle()] ?? $blueprint)) {
                     $this->content($copy, $files);
                 }
-                if (method_exists($item, 'workingCopy') && $revision = $item->workingCopy()) {
-                    $copy = $item->makeFromRevision($revision);
-                    if (References::item($copy)->convert()) {
+            });
+            if (method_exists($item, 'workingCopy') && $revision = $item->workingCopy()) {
+                $this->inspect($label.' working copy ('.$revision->path().')', $problems, function () use ($item, $revision, $blueprints, &$files) {
+                    $blueprint = RevisionBlueprint::resolve($item, $revision);
+                    $copy = (clone $item)->data($revision->attributes()['data']);
+                    if (References::item($copy)->convert($blueprints[$blueprint->fullyQualifiedHandle()] ?? $blueprint)) {
                         $revision->attribute('data', $copy->data()->all());
                         $this->content($revision, $files);
                     }
-                }
-            } catch (\RuntimeException $e) {
-                $problems[] = $this->describe($item).': '.$e->getMessage();
+                });
             }
         }
         if ($problems) {
-            foreach ($problems as $problem) { $this->error($problem); }
+            foreach ($problems as $label => $messages) {
+                foreach ($messages as $message) { $this->error($label.': '.$message); }
+            }
             throw new \RuntimeException(count($problems).' item(s) must be fixed before this batch can migrate. Nothing was written.');
         }
         $files = array_values(array_filter($files, fn ($file) => $file['before'] !== $file['after']));
+        foreach ($files as $file) { Journal::assertWritable($file); }
         foreach ($files as $file) { $this->line((isset($file['disk']) ? $file['disk'].'::' : '').$file['path']); }
         $this->info(count($files).' files in this batch. Shared handles and fieldsets include every consumer.');
         if ($this->option('dry-run') || ! $files) { return null; }
@@ -139,17 +157,75 @@ class MigrateFieldsCommand extends Command
         return $run;
     }
 
+    private function blueprintsIn(string $directory, string $prefix = ''): iterable
+    {
+        if (! is_dir($directory)) { return; }
+        $directory = rtrim($directory, '/');
+        $files = new \RecursiveDirectoryIterator($directory, \FilesystemIterator::SKIP_DOTS);
+        foreach (new \RecursiveIteratorIterator($files) as $file) {
+            if ($file->getExtension() !== 'yaml') { continue; }
+            $relative = substr($file->getPathname(), strlen($directory) + 1, -5);
+            if ($prefix === '' && str_starts_with($relative, 'vendor/')) { continue; }
+            $key = $prefix.str_replace('/', '.', $relative);
+            if ($blueprint = Blueprint::find($key)) {
+                yield (str_contains($key, '::') ? $key : $blueprint->fullyQualifiedHandle()) => $blueprint;
+            }
+        }
+    }
+
+    private function supportedOwner(BlueprintDefinition $blueprint): bool
+    {
+        $namespace = $blueprint->namespace();
+        return ! $blueprint->isNamespaced() && (
+            ($namespace === null && $blueprint->handle() === 'user')
+            || in_array($namespace, ['globals', 'assets'], true)
+            || ($namespace !== null && preg_match('/^(collections|taxonomies)\.[^.]+$/D', $namespace))
+        );
+    }
+
+    private function assertInjects(array $blueprints): void
+    {
+        $owners = Collection::all()->keyBy(fn ($collection) => 'collections.'.$collection->handle())
+            ->merge(Taxonomy::all()->keyBy(fn ($taxonomy) => 'taxonomies.'.$taxonomy->handle()));
+        foreach ($blueprints as $blueprint) {
+            if (! $owner = $owners->get($blueprint->namespace())) { continue; }
+            $inject = $owner->cascade();
+            foreach ($blueprint->fields()->all() as $field) {
+                $value = $inject->get($field->handle());
+                if ($value !== null && $value !== '' && $value !== [] && Definitions::hasMigrated($field->config())) {
+                    throw new \RuntimeException('Unsupported injected value at '.$owner->path().':inject.'.$field->handle().'. Resolve or remove it before running this batch.');
+                }
+            }
+        }
+    }
+
+    private function inspect(string $label, array &$problems, \Closure $inspect): void
+    {
+        try {
+            $inspect();
+        } catch (\RuntimeException $e) {
+            $problems[$label] = explode("\n", $e->getMessage());
+        }
+    }
+
     private function definition($definition, array $handles, string $container, string $library, array &$files): void
     {
         $before = $definition->contents();
-        Definitions::clearImports($before);
-        $after = Definitions::convert($before, $handles, $container, $library);
         $path = $definition->initialPath() ?: $definition->path();
+        Definitions::clearImports($before);
         // Convert the file as written. contents() is normalized (legacy `sections:` become `tabs:`)
         // and includes fields Statamic ensures at runtime, neither of which belongs in the YAML.
         $raw = is_file($path) ? YAML::parse(file_get_contents($path)) : null;
-        $converted = $raw === null ? null : Definitions::convert($raw, $handles, $container, $library);
-        if ($after === $before && $converted === $raw) { return; }
+        $converted = $raw === null ? null : Definitions::convert($raw, $handles, $container, $library, $path.':');
+        $after = Definitions::convert($before, $handles, $container, $library, $path.':');
+        if ($after === $before && $converted === $raw) {
+            // Statamic may have resolved a blueprint's fields (e.g. user email)
+            // before the overlay converted its shared definitions.
+            if ($definition instanceof BlueprintDefinition) {
+                $definition->setContents($after);
+            }
+            return;
+        }
         if ($raw === null || str_starts_with(realpath($path) ?: $path, realpath(base_path('vendor')).'/')) {
             if ($definition instanceof \Statamic\Fields\Fieldset && $definition->isNamespaced()) {
                 throw new \RuntimeException('Override the addon fieldset '.$definition->handle().' before migration by copying '.$path

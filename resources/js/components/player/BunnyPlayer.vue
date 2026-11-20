@@ -29,7 +29,7 @@ const playerUrl = computed(() => {
     const url = new URL(props.src);
     url.searchParams.set('autoplay', props.autoplay ? 'true' : 'false');
     url.searchParams.set('preload', 'true');
-    if (props.start) url.searchParams.set('t', `${Math.floor(props.start)}s`);
+    if (props.start !== null) url.searchParams.set('t', `${Math.floor(props.start)}s`);
     return url.toString();
 });
 </script>

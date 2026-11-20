@@ -77,7 +77,7 @@ This addon provides a Bunny fieldtype that you can add to any blueprint. It also
 
 Use the video browser in the Control Panel (under the Bunny Stream navigation item) to upload, browse, and manage your videos.
 
-Access to the video browser requires the `Manage Bunny videos` permission (super admins always have it). Assign it to a role under Users > Roles in the Bunny Stream permission group. The Bunny field's video picker is available to users with that permission or any editing permission (for example `edit articles entries`).
+Access to the video browser requires the `Manage Bunny videos` permission (super admins always have it). Assign it to a role under Users > Roles in the Bunny Stream permission group. The Bunny field's video picker is also available to users with an editing permission or an entry creation permission (for example `create articles entries`).
 
 ### Frontend Templates
 
@@ -201,7 +201,7 @@ Upload videos as you would any other asset: with Statamic's **Upload** button, b
 
 As an extra, enabled containers get an **Upload Video** button next to **Upload** in the asset browser (it is also in the container's ⋯ menu). It sends the file from the browser straight to Bunny in resumable chunks, so your server's upload limits do not apply. As soon as a file is uploaded, it appears as an asset in the folder you had open (reload the asset browser to see it), with a "Processing video…" thumbnail. Editors can pick it in Assets fields straight away. Until a queued job has copied the source back from Bunny, the asset's file is an empty placeholder, so its direct URL serves nothing. If Bunny serves another format than the one uploaded (its MP4 when it kept no original, for example), the asset is renamed to the new extension and references to it are updated.
 
-The button needs the container's upload permission. The copy is the original file when the Bunny library keeps originals, otherwise its best MP4 rendition, which needs **MP4 fallback** enabled in Bunny. If the library offers neither, the copy fails in the queue and the video stays in Bunny only. If Bunny cannot encode a video, its original is still copied when Bunny kept it, and **Retry sync** in the asset editor uploads it again.
+The button needs the container's upload permission. Statamic's container validation rules still apply to the file copied from Bunny; if validation or storage fails, the asset remains a placeholder with an error rather than an empty file marked ready. The copy is the original file when the Bunny library keeps originals, otherwise its best MP4 rendition, which needs **MP4 fallback** enabled in Bunny. If the library offers neither, the copy fails in the queue and the video stays in Bunny only. If Bunny cannot encode a video, its original is still copied when Bunny kept it, and **Retry sync** in the asset editor uploads it again.
 
 Discarding a file in the upload dialog deletes the empty video Bunny created for it. Uploads abandoned some other way (a closed tab, for instance) leave such empty videos behind; `php artisan bunny-stream:prune-uploads` deletes those older than two days that no asset refers to, and runs daily through Laravel's scheduler once `asset_containers` is set. Pass `--dry-run` to list them first. It only touches videos the upload dialog or the sync job created (titled `<name> [<generation>]`) that never received a file.
 
@@ -209,7 +209,7 @@ For ordinary uploads, configure PHP, your web server/proxy, and Statamic's uploa
 
 Reuploads retain the previous stream until the replacement is ready. Renames retain stream identity. Once `asset_containers` is set, remote cleanup is queued, retryable, and disabled by default, including the legacy dashboard's delete endpoint. With no asset containers configured, the dashboard deletes immediately as before. Enable it only after every consumer of the library has migrated. A delete job refuses to remove a GUID still owned by another asset. Turning cleanup on does not retroactively delete videos retained while it was off.
 
-**Keeping asset data safe.** Statamic 6 can erase an asset's custom data when it lists an asset whose stored width, height or duration is empty. That data includes alt text, title and the Bunny stream record. It happens, for example, with a WebM recording that has no duration header. The addon swaps in a subclass of Statamic's asset class that loads the data before metadata is regenerated, and that keeps a stream record a queue worker wrote meanwhile. It only does this when the site uses Statamic's default asset class; a custom asset class or the Eloquent driver is left untouched.
+**Keeping asset data safe.** Statamic 6 can erase an asset's custom data when a listing regenerates metadata with missing dimensions or duration, as with some WebM recordings. For videos in enabled containers, the addon loads custom data before regeneration and keeps a stream record a queue worker wrote meanwhile. It does this even when metadata caching is disabled, and only for Statamic's default asset class; custom asset classes and the Eloquent driver are left untouched.
 
 Stream records are written by queue workers on the server, so treat the `.meta` files of video containers as server-owned and don't overwrite them from Git on deploy. If a record is lost anyway, don't click **Retry sync**, which uploads a new copy. Instead run:
 
@@ -218,7 +218,7 @@ php artisan bunny-stream:repair          # lists the Bunny videos it can match
 php artisan bunny-stream:repair --apply  # restores those records
 ```
 
-It only restores certain matches: the import path, or the `[generation]` suffix the sync job adds to each video title. It reports anything ambiguous.
+Repair requires a unique match in both directions. When only the import path or video title identifies a candidate, repair also compares the stored asset with a downloadable Bunny copy. This can download files even in a preview. It leaves ambiguous or unverified matches unchanged.
 
 If creating a remote video is interrupted before its GUID is saved, retries deliberately stop to avoid creating duplicates. Find the remote video with the generation identifier shown in its Bunny title, then use **Attach and retry** in the asset editor. If no such video exists, investigate the failed request before restarting that upload.
 

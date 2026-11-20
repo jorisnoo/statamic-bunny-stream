@@ -23,6 +23,9 @@ class ImportAssetsCommand extends Command
             $this->error('Configure Bunny and enable the target asset container first.');
             return self::FAILURE;
         }
+        if ($this->option('dry-run')) {
+            return $this->import($bunny, $container);
+        }
         $lock = Cache::lock('bunny-stream:import', 86400);
         if (! $lock->get()) { $this->error('Another import is running.'); return self::FAILURE; }
         try {
@@ -34,19 +37,20 @@ class ImportAssetsCommand extends Command
     {
         $library = (string) config('statamic.bunny-stream.library_id');
         $name = 'imports-'.hash('sha256', $library);
-        $manifest = Journal::read($name);
+        $dryRun = $this->option('dry-run');
+        $manifest = $dryRun ? [] : Journal::read($name);
         $existing = [];
         foreach (Streams::assets() as $asset) {
-            $data = $asset->get('bunny_stream', []);
-            if (($data['library_id'] ?? null) === $library && isset($data['guid'])) {
-                foreach (array_unique(array_merge($data['legacy_guids'] ?? [], [$data['guid']])) as $guid) {
-                    if (isset($existing[$guid])) { throw new \RuntimeException('Duplicate assets for GUID '.$guid); }
-                    $existing[$guid] = $asset;
-                    if ($asset->get('bunny_stream')['state'] === 'remote_unready') {
-                        // Still encoding in Bunny: poll until it is ready.
-                        try { Streams::dispatch($asset); } catch (\RuntimeException $e) { $this->warn($guid.': '.$e->getMessage().' Use Retry sync once the queue runs.'); }
-                    }
+            $data = Streams::persisted($asset);
+            if (! Streams::managed($data) || ($data['library_id'] ?? null) !== $library) {
+                continue;
+            }
+            $guids = array_unique(array_filter(array_merge($data['legacy_guids'] ?? [], [$data['guid'] ?? null, $data['pending_guid'] ?? null])));
+            foreach ($guids as $guid) {
+                if (isset($existing[$guid]) && $existing[$guid][0]->id() !== $asset->id()) {
+                    throw new \RuntimeException('Duplicate assets for GUID '.$guid);
                 }
+                $existing[$guid] = [$asset, $data];
             }
         }
         $failed = 0;
@@ -60,15 +64,18 @@ class ImportAssetsCommand extends Command
                 if (isset($seen[$guid])) { throw new \RuntimeException('Bunny pagination repeated a video. Retry the import.'); }
                 $seen[$guid] = true;
                 if (isset($existing[$guid])) {
-                    $mapped = $existing[$guid];
-                    if (! $this->option('dry-run')) {
-                        $manifest[$guid] = array_merge($manifest[$guid] ?? [], ['state' => 'complete', 'asset' => $mapped->id(), 'key' => $mapped->get('bunny_stream')['key']]);
+                    [$mapped, $data] = $existing[$guid];
+                    if (! $dryRun && ($guid !== ($data['pending_guid'] ?? null) || $guid === ($data['guid'] ?? null))) {
+                        $manifest[$guid] = array_merge($manifest[$guid] ?? [], ['state' => 'complete', 'asset' => $mapped->id(), 'key' => $data['key'] ?? null]);
                         Journal::write($name, $manifest);
+                    }
+                    if (! $dryRun && $guid === ($data['pending_guid'] ?? $data['guid'] ?? null)) {
+                        $this->poll($mapped, $data);
                     }
                     $this->line('Already imported: '.$mapped->id());
                     continue;
                 }
-                if ($this->option('dry-run')) { $this->line('Import '.$guid.' — '.($video['title'] ?? 'Untitled')); continue; }
+                if ($dryRun) { $this->line('Import '.$guid.' — '.($video['title'] ?? 'Untitled')); continue; }
                 $temp = tempnam(sys_get_temp_dir(), 'bunny-import-');
                 try {
                     [$source, $extension] = Streams::fetchSource($bunny, $guid, $temp, $video);
@@ -96,14 +103,18 @@ class ImportAssetsCommand extends Command
                         } finally { fclose($stream); $disk->delete($staging); }
                     }
                     $asset = Asset::make()->container($container)->path($path);
-                    $asset->set('title', $video['title'] ?? $guid)->set('bunny_stream', [
+                    $ready = Streams::playable($video);
+                    $data = [
                         'key' => (string) Str::uuid(), 'generation' => (string) Str::uuid(), 'library_id' => $library,
-                        'guid' => $guid, 'state' => in_array((int) ($video['status'] ?? -1), [4, 8], true) ? 'ready' : 'remote_unready',
+                        'guid' => $guid, 'guid_ready' => $ready, 'state' => $ready ? 'ready' : 'remote_unready',
                         'source' => $source, 'metadata' => $video,
-                    ])->saveQuietly();
-                    $existing[$guid] = $asset;
-                    $manifest[$guid] = array_merge($manifest[$guid] ?? [], ['state' => 'complete', 'asset' => $asset->id(), 'key' => $asset->get('bunny_stream')['key'], 'source' => $source, 'error' => null]);
+                    ];
+                    if (! $asset->set('title', $video['title'] ?? $guid)->set('bunny_stream', $data)->saveQuietly()) {
+                        throw new \RuntimeException('Unable to save the imported asset.');
+                    }
+                    $manifest[$guid] = array_merge($manifest[$guid] ?? [], ['state' => 'complete', 'asset' => $asset->id(), 'key' => $data['key'], 'source' => $source, 'error' => null]);
                     $this->line('Imported '.$asset->id().' ('.$source.')');
+                    $this->poll($asset, $data);
                 } catch (\Throwable $e) {
                     $failed++;
                     $manifest[$guid] = array_merge($manifest[$guid] ?? [], ['error' => $e->getMessage()]);
@@ -117,5 +128,19 @@ class ImportAssetsCommand extends Command
             if (! $items) { throw new \RuntimeException('Incomplete Bunny listing.'); }
         }
         return $failed ? self::FAILURE : self::SUCCESS;
+    }
+
+    private function poll($asset, array $data): void
+    {
+        // Also resume older in-place polls whose workers moved them out of remote_unready.
+        if (($data['state'] ?? null) !== 'remote_unready'
+            && (empty($data['pending_guid']) || $data['pending_guid'] !== ($data['guid'] ?? null))) {
+            return;
+        }
+        try {
+            Streams::dispatch($asset);
+        } catch (\RuntimeException $e) {
+            $this->warn($asset->id().': '.$e->getMessage().' Use Retry sync once the queue runs.');
+        }
     }
 }
