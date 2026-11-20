@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.4.1](https://github.com/jorisnoo/statamic-bunny-stream/releases/tag/2.4.1) (2026-10-27)
+
+### Bug Fixes
+
+- register the playlist route when Statamic's front-end routes are disabled (`statamic.routes.enabled` is `false`), which made every video throw `Route [bunny.playlist] not defined` since 2.4.0; video URLs fall back to Bunny's playlist if the route is missing ([bf92e0f](https://github.com/jorisnoo/statamic-bunny-stream/commit/bf92e0f0fef1a13cc0eaea9c1fb7911a39f78edd))
+
+## [2.4.0](https://github.com/jorisnoo/statamic-bunny-stream/releases/tag/2.4.0) (2026-10-23)
+
+### Features
+
+- start Safari and iOS playback at up to 720p instead of Bunny's first-listed 360p, by serving the HLS playlist through a site route with the sharpest rendition up to `playlist_start_resolution` first; set it to `null` to link to Bunny directly ([a02716d](https://github.com/jorisnoo/statamic-bunny-stream/commit/a02716ddc114ed58e4de48dc93104d50c421a4d1))
+
 ## [2.3.2](https://github.com/jorisnoo/statamic-bunny-stream/releases/tag/2.3.2) (2026-09-25)
 
 ### Bug Fixes

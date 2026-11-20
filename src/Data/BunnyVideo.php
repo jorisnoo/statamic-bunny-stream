@@ -2,6 +2,7 @@
 
 namespace Noo\BunnyStream\Data;
 
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
 use Noo\BunnyStream\Assets\Streams;
 use Statamic\Contracts\Assets\Asset;
@@ -16,6 +17,7 @@ class BunnyVideo extends ArrayableString
         protected string|int $libraryId,
         protected ?string $tokenKey = null,
         protected int $tokenExpiry = 24,
+        protected ?int $startResolution = null,
         protected string $thumbnailFilename = 'thumbnail.jpg',
     ) {
         parent::__construct($this->url());
@@ -29,6 +31,7 @@ class BunnyVideo extends ArrayableString
             libraryId: $libraryId ?? config('statamic.bunny-stream.library_id'),
             tokenKey: config('statamic.bunny-stream.token_key'),
             tokenExpiry: (int) config('statamic.bunny-stream.token_expiry', 24),
+            startResolution: config('statamic.bunny-stream.playlist_start_resolution'),
             thumbnailFilename: $thumbnailFilename,
         );
     }
@@ -57,6 +60,15 @@ class BunnyVideo extends ArrayableString
     }
 
     public function url(): string
+    {
+        if ($this->startResolution && Route::has('bunny.playlist')) {
+            return route('bunny.playlist', $this->guid);
+        }
+
+        return $this->sourceUrl();
+    }
+
+    public function sourceUrl(): string
     {
         return "https://{$this->hostname}/{$this->guid}/playlist.m3u8";
     }

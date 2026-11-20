@@ -121,6 +121,18 @@ The Bunny fieldtype augments to a `BunnyVideo` object. When used directly, it ou
 {{ $bunny_video->thumbnail() }}
 ```
 
+#### Playlist start resolution
+
+Safari and iOS play HLS natively and start on the first rendition in the master playlist, which Bunny lists in encoding order (usually 360p first). By default the playlist URL therefore points to a route on your site (`/bunny/{guid}/playlist.m3u8`) that serves Bunny's playlist with the sharpest rendition up to 720p moved to the front. The player still adapts from there, and segments still stream straight from Bunny. Players using hls.js choose by bandwidth and are unaffected.
+
+The route fetches the playlist with your `APP_URL` as referrer, so it must be allowed in the library's referrer settings. Change the start resolution, or set it to `null` to link to Bunny's playlist directly:
+
+```php
+'playlist_start_resolution' => 720,
+```
+
+The original Bunny URL is always available as `$bunny_video->sourceUrl()`.
+
 #### Available Embed Parameters
 
 Pass these as an array to `embed()` or `embedUrl()` in Blade:
