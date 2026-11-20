@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Read stream metadata from the database when saving Eloquent assets, without reading the media file as YAML.
+
 ## [2.3.2](https://github.com/jorisnoo/statamic-bunny-stream/releases/tag/2.3.2) (2026-09-25)
 
 ### Bug Fixes

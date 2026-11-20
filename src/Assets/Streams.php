@@ -8,6 +8,7 @@ use Noo\BunnyStream\BunnyClient;
 use Noo\BunnyStream\Data\BunnyVideo;
 use Noo\BunnyStream\Jobs\DeleteVideo;
 use Noo\BunnyStream\Jobs\SyncVideo;
+use Statamic\Eloquent\Assets\Asset as EloquentAsset;
 use Statamic\Facades\Asset;
 use Statamic\Facades\AssetContainer;
 
@@ -32,6 +33,10 @@ class Streams
     // The stored value, re-read so writes from queue workers since this request loaded the asset win.
     public static function persisted($asset): ?array
     {
+        if ($asset instanceof EloquentAsset) {
+            return $asset->model()?->fresh()?->meta['data']['bunny_stream'] ?? null;
+        }
+
         $disk = $asset->disk();
         if ($disk->exists($path = $asset->metaPath())) {
             return \Statamic\Facades\YAML::parse($disk->get($path))['data']['bunny_stream'] ?? null;
