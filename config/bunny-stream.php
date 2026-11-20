@@ -13,7 +13,7 @@ return [
     // Enable only after every consumer of this library has migrated.
     'delete_remote' => false,
 
-    // Disable the legacy browser menu and page. The legacy field picker still works.
+    // Hide the legacy browser and send its bookmarks to the native asset browser.
     'show_dashboard' => true,
 
     // The unique identifier for your Bunny Stream library.

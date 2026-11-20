@@ -2,16 +2,30 @@
 
 namespace Noo\BunnyStream\Http\Controllers\Cp;
 
+use Illuminate\Http\RedirectResponse;
 use Inertia\Inertia;
 use Inertia\Response;
 use Noo\BunnyStream\BunnyClient;
+use Statamic\Facades\AssetContainer;
+use Statamic\Facades\User;
 use Statamic\Http\Controllers\CP\CpController;
 
 class Overview extends CpController
 {
-    public function __invoke(BunnyClient $bunny): Response
+    public function __invoke(BunnyClient $bunny): Response|RedirectResponse
     {
-        abort_unless(config('statamic.bunny-stream.show_dashboard', true), 404);
+        if (! config('statamic.bunny-stream.show_dashboard', true)) {
+            foreach (config('statamic.bunny-stream.asset_containers', []) as $handle) {
+                $container = AssetContainer::find($handle);
+                if ($container && User::current()?->can('view', $container)) {
+                    return redirect()->cpRoute('assets.browse.show', $handle);
+                }
+            }
+
+            abort(404);
+        }
+
+        $this->authorize('manage bunny videos');
 
         return Inertia::render('BunnyOverview', [
             'title' => __('Media Browser'),

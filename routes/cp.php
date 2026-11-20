@@ -14,10 +14,10 @@ Route::middleware('can:use bunny fieldtype')->group(function () {
     Route::get('/bunny/preview/{guid}', Preview::class)->whereUuid('guid')->name('bunny.cp.preview');
 });
 
-// Media browser, gated behind its own permission.
-Route::middleware('can:manage bunny videos')->name('bunny.cp.')->group(function () {
-    Route::get('/bunny/videos', Overview::class)->name('videoBrowser');
+Route::get('/bunny/videos', Overview::class)->name('bunny.cp.videoBrowser');
 
+// Legacy library management still requires its own permission.
+Route::middleware('can:manage bunny videos')->name('bunny.cp.')->group(function () {
     Route::name('videos.')->prefix('/bunny/api/videos')->whereUuid('guid')->group(function () {
         Route::get('/', [VideosController::class, 'index'])->name('index');
         Route::post('/', [VideosController::class, 'store'])->name('store');
