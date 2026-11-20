@@ -1,5 +1,6 @@
 {
     "1 video uploaded successfully.": "1 video uploaded successfully.",
+    ":count uploaded, :failed failed. Reload the page to see the new videos.": ":count uploaded, :failed failed. Reload the page to see the new videos.",
     ":count videos successfully uploaded.": ":count videos successfully uploaded.",
     "Add Chapter": "Add Chapter",
     "Add chapter": "Add chapter",

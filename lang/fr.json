@@ -1,5 +1,6 @@
 {
     "1 video uploaded successfully.": "1 vidéo téléchargée avec succès.",
+    ":count uploaded, :failed failed. Reload the page to see the new videos.": ":count téléversée(s), :failed en échec. Rechargez la page pour voir les nouvelles vidéos.",
     ":count videos successfully uploaded.": ":count vidéos téléchargées avec succès.",
     "Add Chapter": "Ajouter un chapitre",
     "Add chapter": "Ajouter un chapitre",

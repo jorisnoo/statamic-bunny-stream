@@ -35,12 +35,15 @@
                 class="tw:flex tw:items-center tw:gap-2 tw:p-3 tw:text-sm tw:text-gray-600 tw:sm:gap-3 tw:dark:text-gray-400"
             >
                 <div class="tw:flex tw:size-7 tw:shrink-0 tw:items-center tw:justify-center">
-                    <Icon v-if="file.status === 'error'" name="warning-diamond" class="tw:size-5 tw:text-red-600" v-tooltip="file.error" />
+                    <Icon v-if="file.status === 'error'" name="warning-diamond" class="tw:size-5 tw:text-red-600" />
                     <Icon v-else-if="file.status === 'done'" name="checkmark" class="tw:size-4 tw:text-green-600" />
                     <Icon v-else name="loading" />
                 </div>
 
-                <div class="tw:truncate">{{ file.name }}</div>
+                <div class="tw:flex tw:min-w-0 tw:flex-col">
+                    <span class="tw:truncate">{{ file.name }}</span>
+                    <span v-if="file.status === 'error'" class="tw:truncate tw:text-xs tw:text-red-600" :title="file.error">{{ file.error }}</span>
+                </div>
 
                 <div
                     v-if="file.status === 'uploading'"
@@ -74,7 +77,7 @@
 </template>
 
 <script setup>
-import { ref, watch } from 'vue';
+import { onBeforeUnmount, ref, watch } from 'vue';
 import { Button, Icon, Modal, ModalClose } from '@statamic/cms/ui';
 import { addUploadFiles, assetUploads, clearFinishedUploads, discardUpload, retryUpload } from '../utils/assetUpload.js';
 
@@ -101,5 +104,17 @@ function choose(event) {
     event.target.value = '';
 }
 
-watch(() => assetUploads.open, (open) => { if (!open) clearFinishedUploads(); });
+// A file dropped just outside the drop zone would otherwise open in the tab, ending every upload.
+const keepDrop = (event) => event.preventDefault();
+function guardDrops(on) {
+    for (const type of ['dragover', 'drop']) {
+        on ? window.addEventListener(type, keepDrop) : window.removeEventListener(type, keepDrop);
+    }
+}
+
+watch(() => assetUploads.open, (open) => {
+    guardDrops(open);
+    if (!open) clearFinishedUploads();
+}, { immediate: true });
+onBeforeUnmount(() => guardDrops(false));
 </script>

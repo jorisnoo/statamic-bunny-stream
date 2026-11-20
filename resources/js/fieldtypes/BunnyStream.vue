@@ -22,8 +22,9 @@
                         <span v-if="active" class="tw:text-xs tw:text-gray-500">{{ __('The player appears here once Bunny has processed the video.') }}</span>
                     </div>
 
-                    <div class="tw:flex tw:flex-wrap tw:items-center tw:gap-2" role="status" aria-live="polite">
-                        <Badge :text="stateLabel" :color="stateColor" pill />
+                    <div class="tw:flex tw:flex-wrap tw:items-center tw:gap-2">
+                        <!-- Only the state is announced; the encoding percentage changes every few seconds. -->
+                        <span role="status" aria-live="polite"><Badge :text="stateLabel" :color="stateColor" pill /></span>
                         <Badge v-if="stream.source === 'derivative'" :text="__('Recovered MP4')" color="amber" pill />
                         <span class="tw:text-xs tw:text-gray-500 tw:tabular-nums">{{ details }}</span>
                         <div class="tw:ms-auto tw:flex tw:flex-wrap tw:gap-2">
@@ -107,6 +108,8 @@ const MAX_POLLS = 120;
 
 const stream = ref({});
 const chapters = ref([]);
+// The chapters as Bunny has them; edits that differ are kept until saved.
+const savedChapters = ref('[]');
 const error = ref('');
 const busy = ref('');
 const recoveryGuid = ref('');
@@ -152,12 +155,17 @@ const details = computed(() => [
     stream.value.duration ? formatTime(stream.value.duration) : null,
     stream.value.width && stream.value.height ? `${stream.value.width} × ${stream.value.height}` : null,
 ].filter(Boolean).join(' · '));
+const chaptersDirty = computed(() => JSON.stringify(chapters.value) !== savedChapters.value);
 const guidValid = computed(() => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(recoveryGuid.value.trim()));
 
 function apply(data, { syncChapters = false } = {}) {
     const becameReady = data.state === 'ready' && stream.value.state !== 'ready';
     stream.value = data;
-    if (syncChapters || becameReady) chapters.value = structuredClone(data.chapters ?? []);
+    // Never overwrite chapter edits that haven't been saved.
+    if ((syncChapters || becameReady) && !chaptersDirty.value) {
+        chapters.value = structuredClone(data.chapters ?? []);
+        savedChapters.value = JSON.stringify(chapters.value);
+    }
     clearTimeout(timer);
     if (disposed || data.error || !ACTIVE.includes(data.state)) return;
     if (++polls >= MAX_POLLS) {
@@ -213,12 +221,15 @@ async function action(name, values = {}, success = null) {
         if (disposed) return;
         polls = 0;
         stopped.value = false;
-        if (id === sequence) apply(data, { syncChapters: ['chapters', 'thumbnail'].includes(name) });
+        if (name === 'chapters') savedChapters.value = JSON.stringify(chapters.value);
+        if (id === sequence) apply(data, { syncChapters: name === 'chapters' });
         if (success) Statamic.$toast.success(success);
         return true;
     } catch (e) {
         error.value = e.response?.data?.message || __('The Bunny action failed.');
         Statamic.$toast.error(error.value);
+        // The request stopped the polling; keep watching a transfer in progress.
+        if (id === sequence && !disposed && ACTIVE.includes(stream.value.state)) timer = setTimeout(() => load(), POLL_MS);
         return false;
     } finally {
         busy.value = '';
@@ -243,6 +254,20 @@ async function thumbnail(event) {
 async function transcribe() {
     if (await action('transcribe')) generating.value = true;
 }
+
+// Unsaved chapters make the asset editor ask before closing (its publish container is named "asset").
+// Only a mark this panel added is removed again, so other unsaved fields keep theirs.
+let markedDirty = false;
+watch(chaptersDirty, (dirty) => {
+    if (!previewArea.value) return;
+    if (dirty && !Statamic.$dirty.has('asset')) {
+        Statamic.$dirty.add('asset');
+        markedDirty = true;
+    } else if (!dirty && markedDirty) {
+        Statamic.$dirty.remove('asset');
+        markedDirty = false;
+    }
+});
 
 // Signed embed URLs change on every request; reload the player only for a different video.
 watch(() => stream.value.embed_url, (url) => {

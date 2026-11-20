@@ -135,13 +135,16 @@ function openPreview() {
         previewOpen.value = true;
         return;
     }
+    const guid = props.value;
     loadingPreview.value = true;
-    http.get(props.meta.previewUrl.replace('__GUID__', props.value))
+    http.get(props.meta.previewUrl.replace('__GUID__', guid))
         .then(({ data }) => {
-            preview.value = { ...data, guid: props.value };
+            // The selection may have changed while the preview loaded.
+            if (guid !== props.value) return;
+            preview.value = { ...data, guid };
             previewOpen.value = true;
         })
-        .catch((error) => Statamic.$toast.error(error.response?.data?.message || __('Could not load the video.')))
+        .catch((error) => guid === props.value && Statamic.$toast.error(error.response?.data?.message || __('Could not load the video.')))
         .finally(() => (loadingPreview.value = false));
 }
 

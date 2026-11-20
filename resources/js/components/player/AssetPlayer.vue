@@ -56,7 +56,7 @@ async function load() {
         const { data } = await http.get(item.endpoint, { params: { asset: item.id } });
         if (item === current.value) stream.value = data;
     } catch (e) {
-        error.value = e.response?.data?.message || __('Could not load the video.');
+        if (item === current.value) error.value = e.response?.data?.message || __('Could not load the video.');
     }
 }
 
