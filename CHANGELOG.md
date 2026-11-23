@@ -1,14 +1,27 @@
 # Changelog
 
-## Unreleased
+## [2.5.0] - 2026-11-23
 
-- Keep asset metadata and existing playback intact during uploads, replacement, and encoding. Direct uploads now enforce container rules and retain their placeholder if storage fails.
-- Harden journaled migrations, historical revision recovery, and stream repair against incomplete conversions or ambiguous matches.
-- Keep native asset and chapter edits separate, preserve refreshed chapters and player URLs, and use the active folder for direct uploads.
-- Keep playlist compatibility with 2.4.x and limit releases to the intended tag and Composer-compatible prerelease versions.
-- Enabled asset containers replace the legacy Media Browser: its menu item disappears and bookmarks open the first video container the user can view. The `show_dashboard` setting is removed; a published value is ignored.
-- The asset editor shows the video's thumbnail until it is played, and refreshes it after a custom thumbnail upload.
-- Editor-facing labels, statuses, permissions and errors no longer name the video provider.
+### Added
+
+- Native asset integration. List asset containers in `asset_containers` and every video uploaded to them streams through Bunny. Editors pick these videos with ordinary Assets fields (also in Bard and Replicator), and templates get signed playback through augmentation and the `bunny_stream` modifier. Video jobs need a persistent queue connection such as database or Redis; `sync` is refused.
+- **Upload Video** in the asset browser sends large files from the browser straight to Bunny in resumable chunks. The asset appears at once and receives its file as soon as Bunny serves it, so server upload limits don't apply.
+- The asset editor plays the video in place of the file preview. It shows the thumbnail until played, with status, encoding progress, retry, custom thumbnails and optional chapters below.
+- Bunny thumbnails in the asset browser and in Assets fields, plus a **Play video** action that opens a playlist when a field holds several videos.
+- Migration tooling from legacy Bunny fields to assets: `bunny-stream:import-assets`, journaled `bunny-stream:migrate-fields` with `bunny-stream:rollback`, `bunny-stream:repair`, and a daily `bunny-stream:prune-uploads` for abandoned uploads. See [MIGRATION.md](MIGRATION.md).
+- Database-backed (Eloquent) assets are supported.
+
+### Changed
+
+- Enabled asset containers replace the legacy Media Browser: its menu item disappears and bookmarks open the first video container the user can view. Legacy Bunny fields keep their video picker.
+- Editor-facing labels, statuses, permissions, fieldtype titles and errors no longer name the video provider.
+- Requires Statamic 6.34 or later.
+
+### Fixed
+
+- Statamic can no longer erase stored stream data when an asset is saved, and `bunny-stream:repair` restores records lost earlier.
+- The legacy picker lists every page of the library and never caches a failed listing.
+- Backups keep the uploaded original and fall back to a rendition only when none was kept.
 
 ## [2.4.1](https://github.com/jorisnoo/statamic-bunny-stream/releases/tag/2.4.1) (2026-10-27)
 
