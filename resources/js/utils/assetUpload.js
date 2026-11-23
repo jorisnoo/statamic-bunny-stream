@@ -59,7 +59,7 @@ function importAsset(file) {
 }
 
 function setup() {
-    uppy = new Uppy({ autoProceed: true, restrictions: { allowedFileTypes: ['video/*', '.mkv'] } })
+    uppy = new Uppy({ autoProceed: true, restrictions: { allowedFileTypes: ['video/*', 'audio/*', '.mkv'] } })
         .use(UppyBunnyCreator, {
             create: (file) => api.post(file.meta.endpoint, {
                 container: file.meta.container,

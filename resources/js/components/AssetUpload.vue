@@ -26,7 +26,7 @@
                 <Icon name="upload-cloud" class="tw:size-4 tw:shrink-0" />
                 {{ __('Drop to Upload') }}
             </div>
-            <input ref="input" type="file" accept="video/*,.mkv" multiple class="tw:hidden" @change="choose" />
+            <input ref="input" type="file" accept="video/*,audio/*,.mkv" multiple class="tw:hidden" @change="choose" />
         </div>
 
         <ul v-if="assetUploads.files.length" class="tw:divide-y tw:divide-gray-200 tw:rounded-lg tw:border tw:border-gray-200 tw:dark:divide-gray-700 tw:dark:border-gray-700">

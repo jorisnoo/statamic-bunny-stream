@@ -14,13 +14,15 @@ use Statamic\Facades\AssetContainer;
 
 class Streams
 {
-    // Sources Statamic treats as video, by MIME type; anything else is kept as Bunny's MP4 rendition.
+    // Sources Statamic treats as video or audio, by MIME type; anything else is kept as Bunny's MP4 rendition.
     public const SOURCE_EXTENSIONS = ['video/mp4' => 'mp4', 'video/quicktime' => 'mov', 'video/webm' => 'webm',
-        'video/x-matroska' => 'mkv', 'video/mpeg' => 'mpeg'];
+        'video/x-matroska' => 'mkv', 'video/mpeg' => 'mpeg',
+        'audio/x-wav' => 'wav', 'audio/wav' => 'wav', 'audio/mpeg' => 'mp3', 'audio/x-m4a' => 'm4a', 'audio/mp4' => 'm4a',
+        'audio/flac' => 'flac', 'audio/x-flac' => 'flac', 'audio/ogg' => 'ogg', 'audio/aac' => 'aac', 'audio/x-hx-aac-adts' => 'aac'];
 
     public static function enabled($asset): bool
     {
-        return $asset->isVideo() && in_array($asset->containerHandle(), config('statamic.bunny-stream.asset_containers', []), true);
+        return ($asset->isVideo() || $asset->isAudio()) && in_array($asset->containerHandle(), config('statamic.bunny-stream.asset_containers', []), true);
     }
 
     // Pass $enabledOnly when only stream-enabled containers matter; ownership checks scan everything.
@@ -226,10 +228,12 @@ class Streams
     {
         $mime = (new \finfo(FILEINFO_MIME_TYPE))->file($file);
         if (! filesize($file) || ! isset(self::SOURCE_EXTENSIONS[$mime])) {
-            throw new \RuntimeException('Download is not a supported video file ('.$mime.'). Statamic recognizes '.implode(', ', \Statamic\Assets\Asset::VIDEO_EXTENSIONS).'.');
+            throw new \RuntimeException('Download is not a supported video or audio file ('.$mime.'). Statamic recognizes '.implode(', ', [...\Statamic\Assets\Asset::VIDEO_EXTENSIONS, ...\Statamic\Assets\Asset::AUDIO_EXTENSIONS]).'.');
         }
         $analysis = (new \getID3)->analyze($file);
-        if (! empty($analysis['error']) || empty($analysis['video']['resolution_x']) || empty($analysis['playtime_seconds'])) {
+        // Audio has no picture to measure; it only needs a readable audio stream.
+        $stream = str_starts_with($mime, 'audio/') ? ! empty($analysis['audio']['sample_rate']) : ! empty($analysis['video']['resolution_x']);
+        if (! empty($analysis['error']) || ! $stream || empty($analysis['playtime_seconds'])) {
             throw new \RuntimeException('The downloaded video is corrupt or cannot be inspected.');
         }
 

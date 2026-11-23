@@ -902,4 +902,11 @@ $app['auth']->setUser($uploader);
 $uploadButton = Statamic\Statamic::jsonVariables(request())['bunnyStreamUpload'];
 $app['auth']->setUser($viewer);
 check($uploadButton['containers'] === ['videos'] && Statamic\Statamic::jsonVariables(request())['bunnyStreamUpload'] === null, 'the upload button is offered only where the user may upload');
+// Audio in an enabled container streams like video, and its original is kept as it is.
+check(Streams::enabled(Asset::make()->container($container)->path('voice.wav')), 'audio assets in enabled containers stream through Bunny');
+$wav = tempnam(sys_get_temp_dir(), 'bunny-wav-');
+$samples = str_repeat(pack('v', 0), 8000);
+file_put_contents($wav, 'RIFF'.pack('V', 36 + strlen($samples)).'WAVEfmt '.pack('VvvVVvv', 16, 1, 1, 8000, 16000, 2, 16).'data'.pack('V', strlen($samples)).$samples);
+check(Streams::inspect($wav) === 'wav', 'a downloaded WAV original keeps its format');
+unlink($wav);
 echo "All checks passed.\n";
