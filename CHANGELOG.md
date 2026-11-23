@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.6.0] - 2026-11-23
+
+### Added
+
+- Audio files (WAV, MP3, M4A, FLAC, OGG, AAC) in enabled asset containers stream through Bunny like videos. Imports and direct uploads keep the original audio file instead of falling back to Bunny's MP4 rendition, and **Upload Video** accepts audio.
+
 ## [2.5.0] - 2026-11-23
 
 ### Added
