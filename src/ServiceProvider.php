@@ -80,6 +80,15 @@ class ServiceProvider extends AddonServiceProvider
         });
     }
 
+    /**
+     * The legacy Media Browser serves sites that stream through Bunny fields alone. Once asset
+     * containers are enabled, those containers take its place.
+     */
+    public static function legacyBrowserEnabled(): bool
+    {
+        return empty(config('statamic.bunny-stream.asset_containers', []));
+    }
+
     public static function processingThumbnail(): string
     {
         $text = htmlspecialchars(__('Processing video…'), ENT_XML1);
@@ -165,7 +174,7 @@ class ServiceProvider extends AddonServiceProvider
         });
 
         Nav::extend(function ($nav) {
-            if (! config('statamic.bunny-stream.show_dashboard', true)) {
+            if (! self::legacyBrowserEnabled()) {
                 return;
             }
             $nav->content(__('Media Browser'))

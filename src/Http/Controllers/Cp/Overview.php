@@ -6,6 +6,7 @@ use Illuminate\Http\RedirectResponse;
 use Inertia\Inertia;
 use Inertia\Response;
 use Noo\BunnyStream\BunnyClient;
+use Noo\BunnyStream\ServiceProvider;
 use Statamic\Facades\AssetContainer;
 use Statamic\Facades\User;
 use Statamic\Http\Controllers\CP\CpController;
@@ -14,8 +15,8 @@ class Overview extends CpController
 {
     public function __invoke(BunnyClient $bunny): Response|RedirectResponse
     {
-        // With the legacy browser hidden, old bookmarks open the first video container the user can view.
-        if (! config('statamic.bunny-stream.show_dashboard', true)) {
+        // Asset containers replace the legacy browser; old bookmarks open the first one the user can view.
+        if (! ServiceProvider::legacyBrowserEnabled()) {
             foreach (config('statamic.bunny-stream.asset_containers', []) as $handle) {
                 $container = AssetContainer::find($handle);
                 if ($container && User::current()?->can('view', $container)) {

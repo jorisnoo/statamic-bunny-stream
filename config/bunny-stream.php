@@ -1,6 +1,7 @@
 <?php
 return [
-    // Existing asset containers whose video uploads should be sent to Bunny.
+    // Existing asset containers whose video uploads should be sent to Bunny. Enabling any
+    // replaces the legacy Media Browser: its menu item goes and bookmarks open the container.
     'asset_containers' => [],
 
     // Queue name (not a connection) for uploads and encoding polls. The default
@@ -11,9 +12,6 @@ return [
     // Enable only after every consumer of this library has migrated.
     'delete_remote' => false,
 
-    // Hide after legacy fields have been migrated; bookmarks to the legacy browser then
-    // open the first video container instead. The legacy field endpoints remain available.
-    'show_dashboard' => true,
 
     // The unique identifier for your Bunny Stream library.
     // This is required to interact with the Bunny Stream API and manage your videos.

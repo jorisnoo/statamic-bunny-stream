@@ -186,8 +186,9 @@ Enable existing asset containers in `config/statamic/bunny-stream.php`:
 'asset_containers' => ['videos'],
 'queue' => 'default',
 'delete_remote' => false,
-'show_dashboard' => true,
 ```
+
+Enabled containers replace the legacy Media Browser: its menu item disappears, and bookmarks to it open the first container the user can view. Legacy Bunny fields keep their video picker.
 
 Editors upload originals to these containers and select them with ordinary Assets fields in entries, Bard, and Replicator. Video uploads queue a transfer to Bunny. In the asset editor, the Bunny player takes the place of the file preview, with status, encoding progress, retry, custom thumbnails, and the optional chapter tools beneath it.
 
