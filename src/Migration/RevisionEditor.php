@@ -74,7 +74,7 @@ final class RevisionEditor
         $fields = [];
         foreach ($unresolved as $path => $guid) { $fields[] = '`'.$path.'` (`'.$guid.'`)'; }
         $blueprint->ensureField(self::REMOVE, [
-            'type' => 'toggle', 'display' => 'Remove unresolved Bunny videos',
+            'type' => 'toggle', 'display' => 'Remove unresolved videos',
             'instructions' => 'The original references are still stored: '.implode(', ', $fields).'. Choose a replacement asset, reimport the original and reopen this editor, or enable this switch to remove any references you leave empty.',
         ], 'sidebar');
     }
@@ -96,7 +96,7 @@ final class RevisionEditor
         foreach ($unresolved as $path => $guid) {
             $value = Arr::get($data, $path);
             if (! is_string($value) || $value === '' || ! self::sameRows($before, $data, $path)) {
-                $errors[$path] = 'The unresolved Bunny video '.$guid.' is still stored. Select a replacement, or confirm removal before saving.';
+                $errors[$path] = 'The unresolved video '.$guid.' is still stored. Select a replacement, or confirm removal before saving.';
             }
         }
         if ($errors) { throw ValidationException::withMessages($errors); }

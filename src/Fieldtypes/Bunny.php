@@ -8,7 +8,7 @@ use Statamic\Fields\Fieldtype;
 
 class Bunny extends Fieldtype
 {
-    protected static $title = 'Bunny';
+    protected static $title = 'Streaming video';
     protected $icon = 'video';
 
     public function preload(): array

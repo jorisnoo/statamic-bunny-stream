@@ -75,7 +75,7 @@ class BunnyClient
                 if ($e->response->status() !== 404) { throw $e; }
             }
         }
-        throw new \RuntimeException('No downloadable MP4 is available for '.$guid.'. Supply a source file or enable MP4 fallback in Bunny.');
+        throw new \RuntimeException('No downloadable MP4 is available for '.$guid.'. Supply a source file or enable MP4 fallback in the streaming library.');
     }
 
     /**

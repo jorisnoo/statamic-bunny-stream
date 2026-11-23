@@ -35,7 +35,7 @@ export function configureNativeAssets() {
         const run = methods[name];
         if (!run) continue;
         methods[name] = function (...args) {
-            if (chapterDrafts.get(this)?.() && !window.confirm(__('Discard unsaved Bunny chapters?'))) return;
+            if (chapterDrafts.get(this)?.() && !window.confirm(__('Discard unsaved chapters?'))) return;
             return run.apply(this, args);
         };
     }

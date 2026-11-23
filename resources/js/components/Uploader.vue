@@ -38,7 +38,7 @@ export default {
                         { id: 'name', name: __('Name'), placeholder: __('Filename') },
                         { id: 'thumbTime', name: __('Timestamp'), placeholder: __('hh:mm:ss e.g. 00:01:04 for minute 1, second 4') },
                         {
-                            id: 'bunnyId', name: __('Bunny ID'),
+                            id: 'bunnyId', name: __('Video ID'),
                             render: ({ value }, h) => {
                                 return h(
                                     'input',
@@ -46,7 +46,7 @@ export default {
                                         type: 'text',
                                         class: 'uppy-u-reset uppy-c-textInput uppy-Dashboard-FileCard-input tw:bg-gray-300',
                                         value: value,
-                                        placeholder: __('Bunny ID'),
+                                        placeholder: __('Video ID'),
                                         disabled: true
                                     },
                                     []

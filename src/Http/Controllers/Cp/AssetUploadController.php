@@ -103,7 +103,7 @@ class AssetUploadController extends CpController
             try {
                 $bunny->delete($guid);
             } catch (\Illuminate\Http\Client\RequestException $e) {
-                abort_unless($e->response->status() === 404, 502, 'Bunny could not delete the video.');
+                abort_unless($e->response->status() === 404, 502, 'The video could not be deleted.');
             }
             Cache::forget('bunny-stream:upload:'.$guid);
 

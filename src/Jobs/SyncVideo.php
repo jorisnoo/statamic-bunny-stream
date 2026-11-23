@@ -47,7 +47,7 @@ class SyncVideo implements ShouldQueue
             return;
         }
         if ($data['library_id'] !== (string) config('statamic.bunny-stream.library_id')) {
-            throw new \RuntimeException('Bunny library changed; restore its configuration before retrying.');
+            throw new \RuntimeException('The streaming library changed; restore its configuration before retrying.');
         }
         // Upgrade older in-flight records before their state changes or metadata is refreshed.
         if (! isset($data['guid_ready'])) {
@@ -61,13 +61,13 @@ class SyncVideo implements ShouldQueue
         if ($pollOnly) {
             $guid ??= $data['guid'] ?? null;
             if (! $guid) {
-                throw new \RuntimeException('No Bunny GUID is available to poll.');
+                throw new \RuntimeException('No video GUID is available to poll.');
             }
         }
         if (! $guid) {
             // A lost create response is ambiguous. Never blindly create another remote video.
             if (($data['state'] ?? null) === 'creating') {
-                throw new \RuntimeException('Video creation was interrupted. Find generation '.$this->generation.' in Bunny and attach its GUID before retrying.');
+                throw new \RuntimeException('Video creation was interrupted. Find generation '.$this->generation.' in the streaming library and attach its GUID before retrying.');
             }
             $asset->set('bunny_stream', array_merge($data, ['state' => 'creating']))->saveQuietly();
             try {
@@ -113,7 +113,7 @@ class SyncVideo implements ShouldQueue
         $status = (int) ($video['status'] ?? -1);
         $state = $pollOnly ? 'remote_unready' : 'processing';
         if (in_array($status, [5, 6], true)) {
-            $error = 'Bunny rejected or failed to encode the video (status '.$status.').';
+            $error = 'The video could not be encoded (status '.$status.').';
             // Native transfers can retry uploading the source; library and direct-upload
             // polls must not upload anything unless an editor explicitly retries the transfer.
             $asset->set('bunny_stream', array_merge($data, [

@@ -8,7 +8,9 @@
                 :class="previewArea && ['bunny-asset-preview dark tw:flex tw:min-h-0 tw:text-gray-200 tw:flex-col tw:items-center tw:overflow-y-auto tw:p-4 tw:sm:p-8', { 'bunny-asset-preview--replaces tw:flex-1 tw:justify-center-safe': replacesPreview }]"
             >
                 <div class="tw:w-full tw:shrink-0 tw:space-y-4" :style="previewArea && { maxWidth: 'max(24rem, calc((100svh - 21rem) * 16 / 9))' }">
-                    <BunnyPlayer v-if="playerSrc" :src="playerSrc" :title="stream.title" />
+                    <!-- The thumbnail stands in for the player until it is played, so the iframe only loads on demand. -->
+                    <BunnyPlayer v-if="playerSrc && playing" :src="playerSrc" :title="stream.title" autoplay />
+                    <VideoPoster v-else-if="playerSrc" :thumbnail="posterUrl" :duration="stream.duration" :label="__('Play :title', { title: stream.title })" @play="playing = true" />
 
                     <!-- No stream yet: show where the upload is instead of an empty player. -->
                     <div v-else-if="placeholder" class="tw:flex tw:aspect-video tw:flex-col tw:items-center tw:justify-center tw:gap-3 tw:rounded-lg tw:border tw:border-dashed tw:border-gray-500 tw:p-6 tw:text-center">
@@ -19,7 +21,7 @@
                             </div>
                             <span class="tw:mt-1 tw:block tw:text-xs tw:text-gray-500 tw:tabular-nums">{{ stream.progress }}%</span>
                         </div>
-                        <span v-if="active" class="tw:text-xs tw:text-gray-500">{{ __('The player appears here once Bunny has processed the video.') }}</span>
+                        <span v-if="active" class="tw:text-xs tw:text-gray-500">{{ __('The player appears here once the video has been processed.') }}</span>
                     </div>
 
                     <div class="tw:flex tw:flex-wrap tw:items-center tw:gap-2">
@@ -45,9 +47,9 @@
                     </div>
 
                     <Alert v-if="error" variant="error" :text="error" />
-                    <Alert v-else-if="stream.error" variant="error" :heading="__('Bunny sync failed')" :text="stream.error" />
+                    <Alert v-else-if="stream.error" variant="error" :heading="__('Video processing failed')" :text="stream.error" />
                     <Alert v-if="stopped" variant="warning" :text="__('Still working on it. Refresh to keep checking.')" />
-                    <Description v-if="stream.source === 'derivative'" :text="__('Bunny kept no original for this video, so this asset holds its best MP4 rendition. Replace the file to store the original; the stream stays online until the new one is ready.')" />
+                    <Description v-if="stream.source === 'derivative'" :text="__('No original was kept for this video, so this asset holds its best MP4 rendition. Replace the file to store the original; the stream stays online until the new one is ready.')" />
 
                     <template v-if="editable">
                         <div v-if="canRetry">
@@ -57,7 +59,7 @@
                         <Field
                             v-if="stream.state === 'creating' && stream.error"
                             :label="__('GUID of the video created for this upload')"
-                            :instructions="__('Find the video in Bunny whose title ends with this upload\'s generation ID, then paste its GUID.')"
+                            :instructions="__('Find the video in the streaming library whose title ends with this upload\'s generation ID, then paste its GUID.')"
                         >
                             <div class="tw:flex tw:gap-2">
                                 <Input v-model="recoveryGuid" placeholder="00000000-0000-0000-0000-000000000000" />
@@ -66,7 +68,7 @@
                         </Field>
 
                         <section v-if="meta.chapters && (stream.embed_url || chaptersDirty)" class="tw:@container tw:space-y-2" :aria-label="__('Chapters')">
-                            <Description :text="__('Chapters are saved to Bunny directly, not with the asset.')" />
+                            <Description :text="__('Chapters are saved to the stream directly, not with the asset.')" />
                             <Alert v-if="staleDraft" variant="warning" :text="__('The current video changed. Discard this draft to edit the new video.')" />
                             <div v-for="(chapter, index) in chapters" :key="index" class="tw:grid tw:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] tw:@lg:grid-cols-[minmax(0,1fr)_6.5rem_6.5rem_auto] tw:items-end tw:gap-2">
                                 <Field class="tw:col-span-full tw:@lg:col-span-1" :label="__('Title')"><Input v-model="chapter.title" /></Field>
@@ -80,13 +82,13 @@
                                 <Button v-else variant="primary" :text="__('Save chapters')" :loading="busy === 'chapters'" :disabled="!!busy || !chaptersDirty" @click="saveChapters" />
                                 <Button :text="__('Generate chapters')" :loading="busy === 'transcribe'" :disabled="!!busy || staleDraft || (generating && !stopped)" @click="action('transcribe', { guid: stream.guid })" />
                             </div>
-                            <Description v-if="generating" :text="__('Bunny is generating chapters. They will appear here when available.')" />
-                            <Alert v-else-if="stream.chapter_generation_failed" variant="error" :text="__('Bunny could not generate chapters for this video.')" />
+                            <Description v-if="generating" :text="__('Chapters are being generated. They will appear here when available.')" />
+                            <Alert v-else-if="stream.chapter_generation_failed" variant="error" :text="__('Chapters could not be generated for this video.')" />
                         </section>
                     </template>
                 </div>
             </div>
-            <Description v-else-if="!previewArea" :text="__('Bunny Stream is available on videos in enabled asset containers.')" />
+            <Description v-else-if="!previewArea" :text="__('Streaming is available for videos in enabled asset containers.')" />
         </Teleport>
     </div>
 </template>
@@ -96,6 +98,7 @@ import { computed, getCurrentInstance, ref, watch, onMounted, onBeforeUnmount } 
 import { Fieldtype } from '@statamic/cms';
 import { Alert, Badge, Button, Description, Field, Input } from '@statamic/cms/ui';
 import BunnyPlayer from '../components/player/BunnyPlayer.vue';
+import VideoPoster from '../components/player/VideoPoster.vue';
 import { formatTime } from '@/utils/time.js';
 import { guardAssetEditor } from '../utils/nativeAssets.js';
 
@@ -124,6 +127,9 @@ const stopped = ref(false);
 const root = ref(null);
 const previewArea = ref(null);
 const playerSrc = ref(null);
+const playing = ref(false);
+// Bumped after a custom thumbnail upload: Bunny serves it at the same URL.
+const thumbnailVersion = ref(0);
 const chapterDirtyKey = Symbol('bunny-chapters');
 let timer = null;
 let polls = 0;
@@ -136,10 +142,10 @@ const labels = {
     not_synced: __('Not synced'),
     queued: __('Queued'),
     creating: __('Creating video…'),
-    uploading: __('Uploading to Bunny…'),
+    uploading: __('Uploading…'),
     processing: __('Processing…'),
     ready: __('Ready'),
-    remote_unready: __('Waiting for Bunny'),
+    remote_unready: __('Waiting for the stream'),
 };
 const stateLabel = computed(() => labels[stream.value.state] ?? (stream.value.state ? stream.value.state : __('Loading…')));
 const stateColor = computed(() => {
@@ -165,6 +171,13 @@ const details = computed(() => [
     stream.value.duration ? formatTime(stream.value.duration) : null,
     stream.value.width && stream.value.height ? `${stream.value.width} × ${stream.value.height}` : null,
 ].filter(Boolean).join(' · '));
+const posterUrl = computed(() => {
+    if (!stream.value.thumbnail) return null;
+    if (!thumbnailVersion.value) return stream.value.thumbnail;
+    const url = new URL(stream.value.thumbnail);
+    url.searchParams.set('v', thumbnailVersion.value);
+    return url.toString();
+});
 const chaptersDirty = computed(() => JSON.stringify(chapters.value) !== savedChapters.value);
 const staleDraft = computed(() => chaptersDirty.value && chapterGuid.value !== stream.value.guid);
 const guidValid = computed(() => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(recoveryGuid.value.trim()));
@@ -185,6 +198,8 @@ function apply(data) {
     if (!data.embed_url || !playerSrc.value || data.guid !== stream.value.guid || (expiry && expiry <= Date.now())) {
         playerSrc.value = data.embed_url;
     }
+    // Another video starts at its thumbnail again.
+    if (data.guid !== stream.value.guid) playing.value = false;
     stream.value = data;
     if (!chaptersDirty.value) loadChapters(data);
 }
@@ -224,7 +239,7 @@ async function load({ refresh = false, poll = false } = {}) {
         }
     } catch (e) {
         if (id !== sequence || disposed) return;
-        error.value = e.response?.data?.message || __('Could not load the Bunny status.');
+        error.value = e.response?.data?.message || __('Could not load the video status.');
         // Keep watching an active transfer through brief outages, backing off each time.
         failures++;
     } finally {
@@ -262,7 +277,7 @@ async function action(name, values = {}, success = null) {
         if (success) Statamic.$toast.success(success);
     } catch (e) {
         if (id !== sequence || disposed) return;
-        error.value = e.response?.data?.message || __('The Bunny action failed.');
+        error.value = e.response?.data?.message || __('The action failed.');
         Statamic.$toast.error(error.value);
     } finally {
         if (id === sequence && !disposed) {
@@ -284,6 +299,7 @@ async function thumbnail(event) {
     data.append('thumbnail', file);
     data.append('guid', stream.value.guid);
     await action('thumbnail', data, __('Thumbnail updated.'));
+    if (!error.value) thumbnailVersion.value = Date.now();
     // Allow choosing the same file again.
     if (thumbnailInput.value) thumbnailInput.value.value = '';
 }

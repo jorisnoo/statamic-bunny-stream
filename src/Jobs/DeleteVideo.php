@@ -24,7 +24,7 @@ class DeleteVideo implements ShouldQueue
             return;
         }
         if ($this->library !== (string) config('statamic.bunny-stream.library_id')) {
-            throw new \RuntimeException('Bunny library changed; refusing to delete from another library.');
+            throw new \RuntimeException('The streaming library changed; refusing to delete from another library.');
         }
         foreach (Streams::assets() as $asset) {
             $data = Streams::persisted($asset);

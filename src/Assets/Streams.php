@@ -113,7 +113,7 @@ class Streams
         }
         $library = (string) config('statamic.bunny-stream.library_id');
         if (isset($data['library_id']) && $data['library_id'] !== $library) {
-            throw new \RuntimeException('Bunny library changed; refusing to replace an existing stream.');
+            throw new \RuntimeException('The streaming library changed; refusing to replace an existing stream.');
         }
         self::requireQueue();
         $current = self::video($data)?->guid();
@@ -180,7 +180,7 @@ class Streams
         $driver = config('queue.connections.'.config('queue.default').'.driver');
         if (in_array($driver, [null, 'sync', 'null', 'deferred', 'background'], true)
             || app('queue')->connection() instanceof \Illuminate\Queue\SyncQueue) {
-            throw new \RuntimeException('Bunny Stream requires a persistent queue connection.');
+            throw new \RuntimeException('Video streaming requires a persistent queue connection.');
         }
     }
 

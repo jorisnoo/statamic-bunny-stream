@@ -158,9 +158,9 @@ class ServiceProvider extends AddonServiceProvider
         static::provideUploadButton();
 
         Permission::extend(function () {
-            Permission::group('bunny-stream', __('Bunny Stream'), function () {
+            Permission::group('bunny-stream', __('Video streaming'), function () {
                 Permission::register('manage bunny videos')
-                    ->label(__('Manage Bunny videos'));
+                    ->label(__('Manage streaming library'));
             });
         });
 

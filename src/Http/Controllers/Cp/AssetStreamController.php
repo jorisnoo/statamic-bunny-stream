@@ -19,14 +19,14 @@ class AssetStreamController extends CpController
         abort_unless($asset && Streams::enabled($asset), 404);
         $this->authorize($request->isMethod('get') ? 'view' : 'edit', $asset);
         $data = self::streamData($asset);
-        abort_if(isset($data['library_id']) && $data['library_id'] !== (string) config('statamic.bunny-stream.library_id'), 409, 'Bunny library configuration changed.');
+        abort_if(isset($data['library_id']) && $data['library_id'] !== (string) config('statamic.bunny-stream.library_id'), 409, 'The streaming library configuration changed.');
         $guid = Streams::video($data)?->guid();
         $action = $request->isMethod('post') ? ($input['action'] ?? null) : null;
         $metadata = null;
         if ($request->isMethod('post')) {
             if (in_array($action, self::VIDEO_ACTIONS, true)) {
                 $selected = $request->validate(['guid' => ['required', 'uuid']])['guid'];
-                abort_unless($selected === $guid, 409, 'The current Bunny video changed. Refresh the editor.');
+                abort_unless($selected === $guid, 409, 'The video changed. Refresh the editor.');
             }
             switch ($action) {
                 case 'retry':
@@ -89,7 +89,7 @@ class AssetStreamController extends CpController
             $asset = Streams::fresh($asset->id());
             abort_unless($asset && Streams::enabled($asset), 404);
             $data = self::streamData($asset);
-            abort_if(isset($data['library_id']) && $data['library_id'] !== (string) config('statamic.bunny-stream.library_id'), 409, 'Bunny library configuration changed.');
+            abort_if(isset($data['library_id']) && $data['library_id'] !== (string) config('statamic.bunny-stream.library_id'), 409, 'The streaming library configuration changed.');
             if (Streams::video($data)?->guid() === $guid && ($metadata['guid'] ?? $guid) === $guid) {
                 $updated = array_merge($data, ['metadata' => $metadata]);
                 if ($action === 'transcribe') {

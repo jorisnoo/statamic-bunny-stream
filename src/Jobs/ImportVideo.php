@@ -65,7 +65,7 @@ class ImportVideo implements ShouldQueue
         }
         $data = $asset->get('bunny_stream');
         if ($data['library_id'] !== (string) config('statamic.bunny-stream.library_id')) {
-            throw new \RuntimeException('Bunny library changed; restore its configuration before retrying.');
+            throw new \RuntimeException('The streaming library changed; restore its configuration before retrying.');
         }
         $guid = $data['pending_guid'] ?? $data['guid'];
         $video = $bunny->video($guid);
@@ -92,7 +92,7 @@ class ImportVideo implements ShouldQueue
                 }
             } catch (\Exception $e) {
                 if ($failed) {
-                    $this->fail(new \RuntimeException('Bunny rejected or failed to encode the video (status '.$status.').'));
+                    $this->fail(new \RuntimeException('The video could not be encoded (status '.$status.').'));
 
                     return;
                 }
@@ -174,7 +174,7 @@ class ImportVideo implements ShouldQueue
             'metadata' => $ready || $current === null ? $video : ($data['metadata'] ?? []),
             'pending_metadata' => ! $ready && $current !== null ? $video : null,
             'state' => $failedStatus ? 'not_synced' : ($ready ? 'ready' : 'remote_unready'),
-            'error' => $failedStatus ? 'Bunny could not encode this video (status '.$failedStatus.'). Retry sync to upload it again.' : null,
+            'error' => $failedStatus ? 'This video could not be encoded (status '.$failedStatus.'). Retry sync to upload it again.' : null,
         ]))->saveQuietly()) {
             throw new \RuntimeException('Unable to save the imported asset.');
         }

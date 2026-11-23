@@ -8,7 +8,7 @@ use Statamic\Fields\Fieldtype;
 
 class BunnyStream extends Fieldtype
 {
-    protected static $title = 'Bunny Stream (asset)';
+    protected static $title = 'Video stream (asset)';
     protected $icon = 'video';
 
     public function preload(): array
