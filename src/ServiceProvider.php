@@ -5,8 +5,6 @@ namespace Noo\BunnyStream;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Route;
-use Statamic\Facades\CP\Nav;
-use Statamic\Facades\Permission;
 use Statamic\Facades\User;
 use Statamic\Providers\AddonServiceProvider;
 use Statamic\Statamic;
@@ -74,19 +72,10 @@ class ServiceProvider extends AddonServiceProvider
         Gate::define('use bunny fieldtype', function ($user) {
             $user = User::fromUser($user);
 
-            return $user && ($user->isSuper() || $user->hasPermission('manage bunny videos')
+            return $user && ($user->isSuper()
                 || collect($user->permissions())->contains(fn ($permission) => str_starts_with($permission, 'edit ')
                     || (str_starts_with($permission, 'create ') && str_ends_with($permission, ' entries'))));
         });
-    }
-
-    /**
-     * The legacy Media Browser serves sites that stream through Bunny fields alone. Once asset
-     * containers are enabled, those containers take its place.
-     */
-    public static function legacyBrowserEnabled(): bool
-    {
-        return empty(config('statamic.bunny-stream.asset_containers', []));
     }
 
     public static function processingThumbnail(): string
@@ -165,24 +154,6 @@ class ServiceProvider extends AddonServiceProvider
         static::registerGates();
         static::registerAssetHooks();
         static::provideUploadButton();
-
-        Permission::extend(function () {
-            Permission::group('bunny-stream', __('Video streaming'), function () {
-                Permission::register('manage bunny videos')
-                    ->label(__('Manage streaming library'));
-            });
-        });
-
-        Nav::extend(function ($nav) {
-            if (! self::legacyBrowserEnabled()) {
-                return;
-            }
-            $nav->content(__('Media Browser'))
-                ->section('Content')
-                ->route('bunny.cp.videoBrowser')
-                ->can('manage bunny videos')
-                ->icon('movie-video-clip');
-        });
 
         Fieldtypes\Bunny::register();
         Fieldtypes\BunnyStream::register();

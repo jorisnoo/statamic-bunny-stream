@@ -1,7 +1,6 @@
 <?php
 return [
-    // Existing asset containers whose video uploads should be sent to Bunny. Enabling any
-    // replaces the legacy Media Browser: its menu item goes and bookmarks open the container.
+    // Existing asset containers whose video and audio uploads stream through Bunny.
     'asset_containers' => [],
 
     // Queue name (not a connection) for uploads and encoding polls. The default

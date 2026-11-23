@@ -525,13 +525,6 @@ check($data['state'] === 'ready' && $data['guid'] === $thirdGuid && ! array_diff
 $dbAsset = new class extends Statamic\Assets\Asset { public function metaPath() { return $this->path(); } };
 $dbAsset->container($container)->path('newer.mp4')->set('bunny_stream', ['state' => 'stale'])->syncOriginal();
 check(Streams::persisted($dbAsset) === Asset::find('videos::newer.mp4')->get('bunny_stream'), 'database-backed assets read their stored stream, not the media file');
-// Without asset containers the dashboard keeps deleting immediately.
-config(['statamic.bunny-stream.asset_containers' => [], 'statamic.bunny-stream.delete_remote' => false]);
-$deletes = [];
-fakeHttp(function ($request) use (&$deletes) { $deletes[] = $request->method(); return Http::response([], 200); });
-(new Noo\BunnyStream\Http\Controllers\Cp\VideosController($retry()))->destroy(new BunnyClient, app(Noo\BunnyStream\Repositories\VideoRepository::class), '77777777-7777-4777-8777-777777777777');
-check($deletes === ['DELETE'], 'dashboard delete is unchanged without asset containers');
-config(['statamic.bunny-stream.asset_containers' => ['videos']]);
 // Backups keep the uploaded original and use a rendition only when none was kept.
 $backupFake = new class extends BunnyClient {
     public array $sources = [];
@@ -604,7 +597,7 @@ Statamic\Facades\Role::make('creator')->title('Creator')->permissions(['access c
 $creator = Statamic\Facades\User::make()->email('creator@example.test')->assignRole('creator');
 $creator->save();
 $creatorGate = Illuminate\Support\Facades\Gate::forUser($creator);
-check($creatorGate->allows('use bunny fieldtype') && $creatorGate->denies('manage bunny videos'), 'create-only editors can use the picker but not manage videos');
+check($creatorGate->allows('use bunny fieldtype'), 'create-only editors can use the picker');
 // Streamed videos show Bunny's thumbnail wherever the CP lists assets.
 Noo\BunnyStream\ServiceProvider::registerAssetHooks();
 $chaptered = Asset::find($chaptered->id());

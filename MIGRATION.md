@@ -1,4 +1,4 @@
-# Migrating from the Media Browser to Statamic assets
+# Migrating from Bunny fields to Statamic assets
 
 This guide moves a site from the legacy setup to native Statamic assets. In the legacy setup, videos live only in Bunny and entries store a Bunny GUID in a `bunny` field. In the asset setup, each video is an asset in one of your containers, Bunny is the streaming copy, and entries use ordinary Assets fields.
 
@@ -109,7 +109,7 @@ Enabling a container has these effects right away:
 - Its asset editor shows a **Bunny Stream** panel.
 - Images and other files in the container are not affected.
 - Legacy `bunny` fields keep working.
-- The Media Browser is replaced by the container: its menu item disappears and bookmarks open the container. Upload new videos to the container from now on.
+- Upload new videos to the container from now on. (Version 3 no longer has a separate Media Browser.)
 
 ### Queue
 
@@ -152,7 +152,7 @@ For each video, the import:
 Things to know:
 
 - **Resumable.** If a video fails, the reason is printed, recorded in `storage/app/bunny-stream/imports-<hash>.json`, and the command exits with a failure code. Fix the cause (see [Troubleshooting](#12-troubleshooting)) and run it again. Videos that are already imported are skipped without being downloaded again.
-- **New legacy uploads.** The Media Browser is gone once a container is enabled, but if videos reach the Bunny library some other way after the import, run the import again just before step 8. Otherwise content that references those videos can't be migrated.
+- **New legacy uploads.** If videos reach the Bunny library some other way after the import (another app, the Bunny dashboard), run the import again just before step 8. Otherwise content that references those videos can't be migrated.
 - **Already-mapped assets.** Assets are matched by library and GUID, so renamed or replaced assets aren't imported twice.
 - **Encoding checks:** An apply queues reads of Bunny's encoding status, never another transfer to Bunny. A preview does not queue jobs or change asset records. A video already claimed by a native asset's in-flight upload is not imported again.
 

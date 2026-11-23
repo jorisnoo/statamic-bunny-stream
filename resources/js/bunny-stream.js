@@ -1,6 +1,5 @@
 import Field from './fieldtypes/Bunny.vue';
 import AssetField from './fieldtypes/BunnyStream.vue';
-import Overview from './components/Overview.vue';
 import AssetPlayer from './components/player/AssetPlayer.vue';
 import AssetUpload from './components/AssetUpload.vue';
 import { openAssetUpload } from './utils/assetUpload.js';
@@ -15,7 +14,6 @@ const streams = (meta) => (meta?.data ?? [])
 Statamic.configuring(configureNativeAssets);
 
 Statamic.booting(() => {
-    Statamic.$inertia.register('BunnyOverview', Overview);
     Statamic.$components.register('bunny-fieldtype', Field);
     Statamic.$components.register('bunny_stream-fieldtype', AssetField);
     Statamic.$components.register('bunny-asset-player', AssetPlayer);

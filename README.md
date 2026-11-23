@@ -6,11 +6,10 @@ Bunny Stream is a Statamic addon that integrates the Bunny Stream API for single
 
 ## Features
 
-- Native Statamic CP integration for video uploads and management
-- Browse, search, and manage Bunny Stream videos from the Control Panel
-- Upload videos directly via TUS protocol
-- Custom thumbnails and cover images for full branding control
-- Bunny fieldtype for selecting videos in blueprints (works with Bard and Replicator)
+- Stream videos and audio from ordinary Statamic asset containers through Bunny
+- Upload large files straight from the browser to Bunny via TUS (**Upload Video**)
+- Play, retry, set custom thumbnails and edit chapters in the asset editor
+- Legacy Bunny fieldtype for sites that haven't moved to assets yet (works with Bard and Replicator)
 - GDPR/DSGVO-compliant video hosting with no cookies or consent manager required
 
 ## Requirements
@@ -73,11 +72,9 @@ This will create `config/statamic/bunny-stream.php` where you can override the d
 
 ## Usage
 
-This addon provides a Bunny fieldtype that you can add to any blueprint. It also includes a basic `bunny_video` fieldset with the Bunny field and a poster image field.
+Manage videos as Statamic assets: see [Native Assets workflow](#native-assets-workflow). Version 3 removed the separate Media Browser page; upload, replace and delete videos in the asset browser instead.
 
-Use the video browser in the Control Panel (under the Bunny Stream navigation item) to upload, browse, and manage your videos.
-
-Access to the video browser requires the `Manage Bunny videos` permission (super admins always have it). Assign it to a role under Users > Roles in the Bunny Stream permission group. The Bunny field's video picker is also available to users with an editing permission or an entry creation permission (for example `create articles entries`).
+The legacy Bunny fieldtype and its `bunny_video` fieldset are still available for existing content. Its video picker lists the whole library and is available to super admins and to users with an editing permission or an entry creation permission (for example `create articles entries`). To move that content to assets, follow [MIGRATION.md](MIGRATION.md).
 
 ### Frontend Templates
 
@@ -187,8 +184,6 @@ Enable existing asset containers in `config/statamic/bunny-stream.php`:
 'queue' => 'default',
 'delete_remote' => false,
 ```
-
-Enabled containers replace the legacy Media Browser: its menu item disappears, and bookmarks to it open the first container the user can view. Legacy Bunny fields keep their video picker.
 
 Editors upload originals to these containers and select them with ordinary Assets fields in entries, Bard, and Replicator. Video uploads queue a transfer to Bunny. In the asset editor, the Bunny player takes the place of the file preview, with status, encoding progress, retry, custom thumbnails, and the optional chapter tools beneath it.
 
