@@ -1,5 +1,18 @@
 # Changelog
 
+## [3.0.0] - 2026-11-23
+
+### Breaking
+
+- The legacy Media Browser is gone: its Control Panel page, navigation item and `/bunny/api/videos` endpoints, and the `manage bunny videos` permission. Manage videos in asset containers instead (see [MIGRATION.md](MIGRATION.md) for moving legacy Bunny fields). Remove the permission from your roles.
+- Bookmarks to `/cp/bunny/videos` now return 404 instead of redirecting.
+
+### Changed
+
+- The legacy Bunny fieldtype keeps its video picker for existing content; it is available to super admins and to users who can edit content or create entries.
+- Removed the Media Browser's frontend dependencies (`@uppy/dashboard`, `mitt`) and its translations, which shrinks the CP bundle by about half.
+- The CP bundle is built with Uppy 6, Vite 8 and laravel-vite-plugin 3; the unused `debounce` package is gone.
+
 ## [2.6.0] - 2026-11-23
 
 ### Added
