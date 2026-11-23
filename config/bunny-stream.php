@@ -11,7 +11,8 @@ return [
     // Enable only after every consumer of this library has migrated.
     'delete_remote' => false,
 
-    // Hide after legacy fields have been migrated. Their endpoints remain available.
+    // Hide after legacy fields have been migrated; bookmarks to the legacy browser then
+    // open the first video container instead. The legacy field endpoints remain available.
     'show_dashboard' => true,
 
     // The unique identifier for your Bunny Stream library.
