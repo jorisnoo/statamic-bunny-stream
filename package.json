@@ -6,14 +6,13 @@
     },
     "dependencies": {
         "@statamic/cms": "file:./vendor/statamic/cms/resources/dist-package",
-        "@uppy/core": "^5.2.0",
-        "@uppy/tus": "^5.1.1",
-        "debounce": "^3.0.0"
+        "@uppy/core": "^6.3.1",
+        "@uppy/tus": "^6.0.1"
     },
     "devDependencies": {
         "@tailwindcss/vite": "^4.3.1",
-        "laravel-vite-plugin": "^2.1.0",
+        "laravel-vite-plugin": "^3.2.1",
         "tailwindcss": "^4.3.1",
-        "vite": "^7.3.6"
+        "vite": "^8.3.8"
     }
 }
